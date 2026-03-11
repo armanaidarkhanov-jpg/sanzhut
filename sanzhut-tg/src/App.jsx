@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 
 // ⚠️ REPLACE THIS with your Railway server URL after deploy
-const SERVER_URL = "https://YOUR-SERVER.railway.app";
+const SERVER_URL = "https://sanzhut-server-production.up.railway.app";
 
 const RED_SUITS  = new Set(['♥','♦']);
 const P_COLORS   = ['#e05c5c','#5b9cf6','#52c97a','#f0a24a'];
