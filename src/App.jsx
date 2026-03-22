@@ -17,6 +17,19 @@ VR['JB']=13; VR['JR']=14;
 const rvOf = (c,cv) => c.type==='chameleon'?(cv||'4'):c.value;
 const SEQ_BAD = new Set(['2','3','JB','JR']);
 
+// ── Haptic helper ──
+const haptic = (type) => {
+  try {
+    const hf = window.Telegram?.WebApp?.HapticFeedback;
+    if (!hf) return;
+    if (type === 'impact') hf.impactOccurred('medium');
+    else if (type === 'light') hf.impactOccurred('light');
+    else if (type === 'error') hf.notificationOccurred('error');
+    else if (type === 'success') hf.notificationOccurred('success');
+    else if (type === 'warning') hf.notificationOccurred('warning');
+  } catch(e) {}
+};
+
 function detectCombo(cards,cv=null){
   if(!cards?.length) return null;
   const n=cards.length;
@@ -99,7 +112,6 @@ function CardFace({card,sel,onClick,sm,levelVal,dragHandlers,isDragOver,faceDown
     );
   }
 
-  let cardClass='';
   let topLabel,botLabel,centerSuit,topColor,bgGrad,borderColor;
 
   if(card.type==='joker_black'){
@@ -149,14 +161,11 @@ function CardFace({card,sel,onClick,sm,levelVal,dragHandlers,isDragOver,faceDown
         borderRadius:'50%',background:'#4ade80',
         boxShadow:'0 0 6px #4ade80',
       }}/>}
-      {/* Top corner */}
       <div style={{alignSelf:'flex-start',lineHeight:1.1}}>
         <div style={{fontSize:fs.val,fontWeight:'900',letterSpacing:'-0.03em'}}>{topLabel}</div>
         <div style={{fontSize:fs.suit,lineHeight:1}}>{botLabel}</div>
       </div>
-      {/* Center suit */}
       {!sm&&<div style={{fontSize:fs.center,opacity:.7,lineHeight:1}}>{centerSuit}</div>}
-      {/* Bottom corner (rotated) */}
       <div style={{alignSelf:'flex-end',lineHeight:1.1,transform:'rotate(180deg)'}}>
         <div style={{fontSize:fs.val,fontWeight:'900',letterSpacing:'-0.03em'}}>{topLabel}</div>
         <div style={{fontSize:fs.suit,lineHeight:1}}>{botLabel}</div>
@@ -166,14 +175,13 @@ function CardFace({card,sel,onClick,sm,levelVal,dragHandlers,isDragOver,faceDown
 }
 
 /* ── Player Seat ── */
-function Seat({player,isActive,cardCount,finished,position}){
+function Seat({player,isActive,cardCount,finished,position,connected=true}){
   if(!player) return <div style={{width:56}}/>;
 
   const color = P_COLORS[player.seatIndex??0];
   const avatar = P_AVATARS[player.seatIndex??0];
   const isTop = position==='top';
   const isLeft = position==='left';
-  const isRight = position==='right';
 
   const visibleCards = Math.min(cardCount, 6);
   const extra = cardCount > 6 ? cardCount - 6 : 0;
@@ -202,14 +210,11 @@ function Seat({player,isActive,cardCount,finished,position}){
   );
 
   const badge = (
-    <div style={{
-      display:'flex',flexDirection:'column',alignItems:'center',gap:3,
-    }}>
-      {/* Avatar */}
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
       <div style={{
         width:36,height:36,borderRadius:'50%',
         background:isActive?`${color}22`:'rgba(255,255,255,.05)',
-        border:`2px solid ${isActive?color:finished?`${color}44`:'rgba(255,255,255,.08)'}`,
+        border:`2px solid ${isActive?color:finished?`${color}44`:!connected?'rgba(255,255,255,.06)':'rgba(255,255,255,.08)'}`,
         boxShadow:isActive?`0 0 16px ${color}66,0 0 32px ${color}22`:'none',
         display:'flex',alignItems:'center',justifyContent:'center',
         fontSize:14,transition:'all .3s',flexShrink:0,
@@ -229,15 +234,20 @@ function Seat({player,isActive,cardCount,finished,position}){
           display:'flex',alignItems:'center',justifyContent:'center',
           fontSize:12,
         }}>✓</div>}
+        {!connected&&!finished&&<div style={{
+          position:'absolute',inset:0,borderRadius:'50%',
+          background:'rgba(0,0,0,.65)',
+          display:'flex',alignItems:'center',justifyContent:'center',
+          fontSize:10,
+        }}>📵</div>}
       </div>
-      {/* Name + level */}
       <div style={{textAlign:'center'}}>
         <div style={{
           fontSize:9,fontWeight:700,
-          color:isActive?color:'rgba(255,255,255,.35)',
+          color:isActive?color:!connected?'rgba(255,100,100,.4)':'rgba(255,255,255,.35)',
           maxWidth:52,overflow:'hidden',textOverflow:'ellipsis',
           whiteSpace:'nowrap',letterSpacing:.5,
-        }}>{player.name}</div>
+        }}>{player.name}{!connected&&!finished?' · ✗':''}</div>
         <div style={{
           fontSize:12,fontWeight:900,
           color:'#f59e0b',
@@ -250,7 +260,7 @@ function Seat({player,isActive,cardCount,finished,position}){
 
   if(isTop){
     return(
-      <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,opacity:finished?.5:1}}>
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,opacity:finished?.5:!connected?.5:1}}>
         {badge}
         {cardStack}
       </div>
@@ -261,7 +271,7 @@ function Seat({player,isActive,cardCount,finished,position}){
     <div style={{
       display:'flex',
       flexDirection: isLeft ? 'row' : 'row-reverse',
-      alignItems:'center',gap:5,opacity:finished?.5:1,
+      alignItems:'center',gap:5,opacity:finished?.5:!connected?.5:1,
     }}>
       {badge}
       {cardStack}
@@ -319,7 +329,6 @@ function Lobby({onCreate,onJoin,error}){
 
   return(
     <div style={S.wrap}>
-      {/* Logo */}
       <div style={{textAlign:'center',marginBottom:48}}>
         <div style={{
           fontSize:11,letterSpacing:6,color:'rgba(245,158,11,.4)',
@@ -350,8 +359,8 @@ function Lobby({onCreate,onJoin,error}){
       <div style={{width:'100%',maxWidth:300,display:'flex',flexDirection:'column',gap:10}}>
         {!mode?(
           <>
-            <button onClick={()=>setMode('create')} style={S.btnPrimary}>СОЗДАТЬ КОМНАТУ</button>
-            <button onClick={()=>setMode('join')} style={S.btnGhost}>ВОЙТИ В КОМНАТУ</button>
+            <button onClick={()=>{haptic('light');setMode('create');}} style={S.btnPrimary}>СОЗДАТЬ КОМНАТУ</button>
+            <button onClick={()=>{haptic('light');setMode('join');}} style={S.btnGhost}>ВОЙТИ В КОМНАТУ</button>
           </>
         ):mode==='create'?(
           <>
@@ -383,6 +392,27 @@ function Lobby({onCreate,onJoin,error}){
 
 /* ── Waiting ── */
 function WaitingRoom({roomCode,players}){
+  const [copied, setCopied] = useState(false);
+
+  function copyCode() {
+    haptic('light');
+    navigator.clipboard.writeText(roomCode).catch(()=>{});
+    setCopied(true);
+    setTimeout(()=>setCopied(false), 2000);
+  }
+
+  function shareRoom() {
+    haptic('light');
+    const text = `🃏 Играем в Санжут! Код комнаты: ${roomCode}`;
+    if (navigator.share) {
+      navigator.share({ text }).catch(()=>{});
+    } else {
+      navigator.clipboard.writeText(text).catch(()=>{});
+      setCopied(true);
+      setTimeout(()=>setCopied(false), 2000);
+    }
+  }
+
   return(
     <div style={{
       minHeight:'100vh',
@@ -400,19 +430,38 @@ function WaitingRoom({roomCode,players}){
         ОЖИДАНИЕ ИГРОКОВ
       </div>
 
-      {/* Room code */}
-      <div style={{
-        background:'rgba(245,158,11,.06)',
-        border:'1px solid rgba(245,158,11,.2)',
-        borderRadius:16,padding:'20px 40px',marginBottom:32,textAlign:'center',
-      }}>
+      {/* Room code — tap to copy */}
+      <div
+        onClick={copyCode}
+        style={{
+          background:'rgba(245,158,11,.06)',
+          border:'1px solid rgba(245,158,11,.2)',
+          borderRadius:16,padding:'20px 40px',marginBottom:16,textAlign:'center',
+          cursor:'pointer',transition:'background .2s',
+          WebkitTapHighlightColor:'transparent',
+        }}
+      >
         <div style={{fontSize:9,color:'rgba(245,158,11,.4)',letterSpacing:4,marginBottom:10,fontFamily:"'Outfit',sans-serif"}}>КОД КОМНАТЫ</div>
         <div style={{
           fontSize:44,fontWeight:900,color:'#f59e0b',letterSpacing:12,
           textShadow:'0 0 40px rgba(245,158,11,.4)',fontFamily:"'Outfit',sans-serif",
         }}>{roomCode}</div>
-        <div style={{fontSize:10,color:'rgba(255,255,255,.2)',marginTop:10}}>Отправь друзьям</div>
+        <div style={{fontSize:10,color:copied?'#4ade80':'rgba(255,255,255,.2)',marginTop:10,transition:'color .3s'}}>
+          {copied?'✓ Скопировано!':'Нажми чтобы скопировать'}
+        </div>
       </div>
+
+      {/* Share button */}
+      <button onClick={shareRoom} style={{
+        marginBottom:24,
+        padding:'10px 24px',
+        background:'rgba(96,165,250,.1)',
+        border:'1px solid rgba(96,165,250,.25)',
+        borderRadius:10,cursor:'pointer',
+        color:'#60a5fa',fontSize:13,fontWeight:600,
+        fontFamily:"'Outfit',sans-serif",letterSpacing:.5,
+        transition:'all .2s',
+      }}>📬 Поделиться</button>
 
       {/* Player slots */}
       <div style={{width:'100%',maxWidth:300,display:'flex',flexDirection:'column',gap:8}}>
@@ -459,14 +508,35 @@ export function Game({gs,socket,roomCode}){
   const[arrangeMode,setArrangeMode]=useState(false);
   const[badAnim,setBadAnim]=useState(false);
   const[cardOrder,setCardOrder]=useState(null);
+  const[timeLeft,setTimeLeft]=useState(null);
+  const[logOpen,setLogOpen]=useState(false);
   const dragIdx=useRef(null);
   const[dragOverIdx,setDragOverIdx]=useState(null);
+  const prevPhaseRef=useRef(gs.phase);
 
-  const{players,table,log,finished,phase,myCards,mySeatIndex,currentPlayer}=gs;
+  const{players,table,log,finished,phase,myCards,mySeatIndex,currentPlayer,turnDeadline}=gs;
   const isMyTurn=mySeatIndex===currentPlayer&&phase==='playing';
   const me=players[mySeatIndex];
   const myLV=me?.level||'4';
   const myColor=P_COLORS[mySeatIndex]||'#60a5fa';
+
+  // Turn countdown
+  useEffect(()=>{
+    if(!turnDeadline){setTimeLeft(null);return;}
+    const update=()=>{
+      const left=Math.max(0,Math.ceil((turnDeadline-Date.now())/1000));
+      setTimeLeft(left);
+    };
+    update();
+    const id=setInterval(update,500);
+    return()=>clearInterval(id);
+  },[turnDeadline]);
+
+  // Haptic on phase change
+  useEffect(()=>{
+    if(phase==='finished'&&prevPhaseRef.current==='playing') haptic('success');
+    prevPhaseRef.current=phase;
+  },[phase]);
 
   useEffect(()=>{setCardOrder(sortCards(myCards).map(c=>c.id));},[myCards.length]);
   useEffect(()=>{if(!isMyTurn){setSelected([]);setChamVal(null);}},[isMyTurn]);
@@ -482,19 +552,21 @@ export function Game({gs,socket,roomCode}){
   const canPlayIt=!!(curCombo&&(!table||canBeat(curCombo,table.combo)));
   const canPassIt=!!(table&&table.playedBy!==mySeatIndex&&isMyTurn);
 
-  function bad(){setBadAnim(true);setTimeout(()=>setBadAnim(false),400);}
+  function bad(){setBadAnim(true);haptic('error');setTimeout(()=>setBadAnim(false),400);}
   function toggleCard(card){
     if(arrangeMode||!isMyTurn) return;
+    haptic('light');
     const al=selected.some(c=>c.id===card.id);
     const ns=al?selected.filter(c=>c.id!==card.id):[...selected,card];
     setSelected(ns);if(!ns.some(c=>c.type==='chameleon')) setChamVal(null);
   }
   function playCards(){
     if(!canPlayIt){bad();return;}
+    haptic('impact');
     socket.emit('playCards',{code:roomCode,cardIds:selected.map(c=>c.id),chamVal});
     setSelected([]);setChamVal(null);setArrangeMode(false);
   }
-  function pass(){socket.emit('pass',{code:roomCode});setSelected([]);setChamVal(null);}
+  function pass(){haptic('light');socket.emit('pass',{code:roomCode});setSelected([]);setChamVal(null);}
   function onDragStart(idx){dragIdx.current=idx;}
   function onDragOver(e,idx){e.preventDefault();setDragOverIdx(idx);}
   function onDrop(e,toIdx){
@@ -510,9 +582,12 @@ export function Game({gs,socket,roomCode}){
     const abs=(mySeatIndex+rel)%4;
     const p=players[abs];
     return{player:p,isActive:currentPlayer===abs&&phase==='playing',
-      cardCount:p?.cardCount||0,finished:finished.includes(abs)};
+      cardCount:p?.cardCount||0,finished:finished.includes(abs),connected:p?.connected!==false};
   };
   const right=getSeat(1), top=getSeat(2), left=getSeat(3);
+
+  const timerColor=timeLeft===null?'#4ade80':timeLeft<=5?'#f87171':timeLeft<=10?'#fb923c':'#4ade80';
+  const timerPct=timeLeft===null?100:Math.max(0,(timeLeft/30)*100);
 
   return(
     <div style={{
@@ -528,28 +603,36 @@ export function Game({gs,socket,roomCode}){
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
         @keyframes popIn{from{opacity:0;transform:scale(.88) translateY(6px)}to{opacity:1;transform:scale(1) translateY(0)}}
         @keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes cardDeal{from{opacity:0;transform:translateY(-12px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
       `}</style>
 
+      {/* Turn timer progress bar */}
+      {phase==='playing'&&(
+        <div style={{position:'absolute',top:0,left:0,right:0,height:3,zIndex:10,background:'rgba(255,255,255,.05)'}}>
+          <div style={{
+            height:'100%',
+            width:`${timerPct}%`,
+            background:timerColor,
+            transition:'width .5s linear,background .3s',
+            boxShadow:`0 0 6px ${timerColor}`,
+          }}/>
+        </div>
+      )}
+
       {/* TOP PLAYER */}
-      <div style={{
-        display:'flex',justifyContent:'center',
-        padding:'10px 12px 0',zIndex:2,
-      }}>
+      <div style={{display:'flex',justifyContent:'center',padding:'10px 12px 0',zIndex:2}}>
         <Seat {...top} position="top"/>
       </div>
 
       {/* MIDDLE ROW */}
       <div style={{flex:1,display:'flex',alignItems:'center',padding:'4px 8px',gap:4,minHeight:0}}>
 
-        {/* LEFT */}
         <div style={{display:'flex',alignItems:'center',flexShrink:0}}>
           <Seat {...left} position="left"/>
         </div>
 
         {/* TABLE */}
         <div style={{flex:1,position:'relative',alignSelf:'stretch',display:'flex',alignItems:'center',justifyContent:'center'}}>
-
-          {/* Felt surface */}
           <div style={{
             position:'absolute',inset:0,
             background:'radial-gradient(ellipse at 50% 45%,#1a5c30 0%,#134522 40%,#0b2e17 70%,#071b0e 100%)',
@@ -562,13 +645,7 @@ export function Game({gs,socket,roomCode}){
               0 0 0 1px rgba(255,255,255,.03)
             `,
           }}>
-            {/* Inner ring */}
-            <div style={{
-              position:'absolute',inset:10,borderRadius:'44%',
-              border:'1px solid rgba(255,255,255,.04)',
-              pointerEvents:'none',
-            }}/>
-            {/* Subtle pattern */}
+            <div style={{position:'absolute',inset:10,borderRadius:'44%',border:'1px solid rgba(255,255,255,.04)',pointerEvents:'none'}}/>
             <div style={{
               position:'absolute',inset:0,borderRadius:'44%',
               backgroundImage:'radial-gradient(circle,rgba(255,255,255,.012) 1px,transparent 1px)',
@@ -576,7 +653,6 @@ export function Game({gs,socket,roomCode}){
             }}/>
           </div>
 
-          {/* Table content */}
           <div style={{
             position:'relative',zIndex:2,
             display:'flex',flexDirection:'column',
@@ -584,10 +660,12 @@ export function Game({gs,socket,roomCode}){
             gap:8,padding:16,width:'100%',
           }}>
             {table?(
-              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:7,animation:'popIn .22s ease'}}>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:7}}>
                 <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',gap:3,maxWidth:200}}>
-                  {table.cards.map(c=>(
-                    <CardFace key={c.id} card={c} levelVal={myLV} sm/>
+                  {table.cards.map((c,i)=>(
+                    <div key={c.id} style={{animation:`cardDeal .2s ease ${i*0.04}s both`}}>
+                      <CardFace card={c} levelVal={myLV} sm/>
+                    </div>
                   ))}
                 </div>
                 <div style={{
@@ -603,24 +681,26 @@ export function Game({gs,socket,roomCode}){
                 </div>
               </div>
             ):(
-              <div style={{
-                color:'rgba(255,255,255,.2)',fontSize:11,
-                textAlign:'center',letterSpacing:.5,
-              }}>
+              <div style={{color:'rgba(255,255,255,.2)',fontSize:11,textAlign:'center',letterSpacing:.5}}>
                 {isMyTurn?<>Твой ход<br/>Ходи первым</> : ''}
               </div>
             )}
           </div>
 
-          {/* Room code */}
-          <div style={{
-            position:'absolute',bottom:8,fontSize:8,
-            color:'rgba(255,255,255,.08)',letterSpacing:3,
-            fontFamily:'monospace',
-          }}>{roomCode}</div>
+          {/* Timer number + room code */}
+          <div style={{position:'absolute',bottom:8,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+            {timeLeft!==null&&timeLeft<=10&&(
+              <div style={{
+                fontSize:16,fontWeight:900,color:timerColor,
+                fontFamily:"'Outfit',sans-serif",
+                textShadow:`0 0 12px ${timerColor}`,
+                animation:timeLeft<=5?'pulse .6s infinite':'none',
+              }}>{timeLeft}</div>
+            )}
+            <div style={{fontSize:8,color:'rgba(255,255,255,.08)',letterSpacing:3,fontFamily:'monospace'}}>{roomCode}</div>
+          </div>
         </div>
 
-        {/* RIGHT */}
         <div style={{display:'flex',alignItems:'center',flexShrink:0}}>
           <Seat {...right} position="right"/>
         </div>
@@ -644,11 +724,7 @@ export function Game({gs,socket,roomCode}){
                 animation:'pulse 1.2s infinite',
               }}/>
             )}
-            <span style={{
-              fontSize:12,fontWeight:700,
-              color:isMyTurn?myColor:'rgba(255,255,255,.35)',
-              letterSpacing:.3,
-            }}>
+            <span style={{fontSize:12,fontWeight:700,color:isMyTurn?myColor:'rgba(255,255,255,.35)',letterSpacing:.3}}>
               {me?.name||'Я'}
             </span>
             <span style={{
@@ -661,6 +737,15 @@ export function Game({gs,socket,roomCode}){
               background:'rgba(255,255,255,.05)',
               padding:'1px 6px',borderRadius:6,
             }}>{myCards.length} карт</span>
+            {isMyTurn&&timeLeft!==null&&(
+              <span style={{
+                fontSize:10,fontWeight:700,
+                color:timerColor,
+                background:`${timerColor}15`,
+                padding:'1px 6px',borderRadius:6,
+                border:`1px solid ${timerColor}30`,
+              }}>{timeLeft}с</span>
+            )}
           </div>
           <button onClick={()=>{setArrangeMode(m=>!m);setSelected([]);setChamVal(null);}} style={{
             padding:'4px 10px',fontSize:10,fontWeight:600,
@@ -780,16 +865,37 @@ export function Game({gs,socket,roomCode}){
           </div>
         )}
 
-        {/* Last log */}
+        {/* Expandable log */}
         {log?.length>0&&(
-          <div style={{
-            marginTop:8,fontSize:10,
-            color:'rgba(245,158,11,.4)',
-            textAlign:'center',
-            overflow:'hidden',
-            whiteSpace:'nowrap',textOverflow:'ellipsis',
-          }}>
-            {log[log.length-1]}
+          <div style={{marginTop:8}}>
+            <div
+              onClick={()=>setLogOpen(o=>!o)}
+              style={{
+                fontSize:10,color:'rgba(245,158,11,.4)',
+                textAlign:'center',cursor:'pointer',
+                overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',
+                userSelect:'none',
+              }}
+            >
+              {log[log.length-1]}{log.length>1?` ${logOpen?'▴':'▾'}`:''}
+            </div>
+            {logOpen&&(
+              <div style={{
+                marginTop:4,padding:'6px 10px',
+                background:'rgba(0,0,0,.45)',
+                borderRadius:8,border:'1px solid rgba(255,255,255,.06)',
+                maxHeight:90,overflowY:'auto',
+                animation:'slideUp .15s ease',
+              }}>
+                {[...log].reverse().map((entry,i)=>(
+                  <div key={i} style={{
+                    fontSize:9,color:'rgba(255,255,255,.3)',
+                    padding:'2px 0',
+                    borderBottom:i<log.length-1?'1px solid rgba(255,255,255,.04)':'none',
+                  }}>{entry}</div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -828,19 +934,16 @@ export function Game({gs,socket,roomCode}){
                 <span style={{fontSize:12,color:'rgba(255,255,255,.2)',fontWeight:600,width:16}}>
                   {rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`${rank+1}`}
                 </span>
-                <span style={{
-                  color:P_COLORS[p.seatIndex],fontWeight:700,fontSize:14,
-                }}>{p.name}{p.isMe?' (я)':''}</span>
+                <span style={{color:P_COLORS[p.seatIndex],fontWeight:700,fontSize:14}}>
+                  {p.name}{p.isMe?' (я)':''}
+                </span>
               </div>
-              <span style={{
-                color:'#f59e0b',fontSize:22,fontWeight:900,
-                fontFamily:"'Georgia',serif",
-              }}>{p.level}</span>
+              <span style={{color:'#f59e0b',fontSize:22,fontWeight:900,fontFamily:"'Georgia',serif"}}>{p.level}</span>
             </div>
           ))}
 
           {mySeatIndex===0?(
-            <button onClick={()=>socket.emit('newGame',{code:roomCode})} style={{
+            <button onClick={()=>{haptic('impact');socket.emit('newGame',{code:roomCode});}} style={{
               marginTop:24,padding:'13px 36px',
               background:'linear-gradient(135deg,#d97706,#f59e0b)',
               color:'#111',border:'none',borderRadius:12,cursor:'pointer',
@@ -902,6 +1005,7 @@ export default function App(){
     });
 
     socket.on('error',(msg)=>{
+      haptic('warning');
       setError(msg);
       setTimeout(()=>setError(''),3000);
       if(msg==='Комната не найдена'){
