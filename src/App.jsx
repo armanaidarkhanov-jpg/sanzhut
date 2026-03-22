@@ -225,14 +225,15 @@ function Lobby({onCreate,onJoin,error}){
 }
 
 /* ── Waiting ── */
-function WaitingRoom({roomCode,players,onFillBots}){
+function WaitingRoom({roomCode,players,onFillBots,onExit}){
   const[copied,setCopied]=useState(false);
   const isHost=players[0]?.isMe;
   const hasEmpty=players.length<4;
   function copyCode(){haptic('light');navigator.clipboard.writeText(roomCode).catch(()=>{});setCopied(true);setTimeout(()=>setCopied(false),2000);}
   function shareRoom(){haptic('light');const text=`🃏 Играем в Ван Зан! Код комнаты: ${roomCode}`;if(navigator.share){navigator.share({text}).catch(()=>{});}else{navigator.clipboard.writeText(text).catch(()=>{});setCopied(true);setTimeout(()=>setCopied(false),2000);}}
   return(
-    <div style={{minHeight:'100vh',background:'radial-gradient(ellipse at 40% 0%,#0d1f3c,#050810)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24,color:'#f8fafc',fontFamily:"'Inter',sans-serif"}}>
+    <div style={{minHeight:'100vh',background:'radial-gradient(ellipse at 40% 0%,#0d1f3c,#050810)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24,color:'#f8fafc',fontFamily:"'Inter',sans-serif",position:'relative'}}>
+      <button onClick={onExit} style={{position:'absolute',top:16,left:16,padding:'6px 12px',background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',borderRadius:8,cursor:'pointer',color:'rgba(255,255,255,.25)',fontSize:12,fontFamily:"'Inter',sans-serif"}}>← Выйти</button>
       <div style={{fontSize:28,fontWeight:900,letterSpacing:6,fontFamily:"'Outfit',sans-serif",background:'linear-gradient(135deg,#fcd34d,#f59e0b)',WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent',marginBottom:8}}>🃏 ВАН ЗАН</div>
       <div style={{fontSize:11,color:'rgba(255,255,255,.25)',letterSpacing:3,marginBottom:36,fontFamily:"'Outfit',sans-serif"}}>ОЖИДАНИЕ ИГРОКОВ</div>
       <div onClick={copyCode} style={{background:'rgba(245,158,11,.06)',border:'1px solid rgba(245,158,11,.2)',borderRadius:16,padding:'20px 40px',marginBottom:16,textAlign:'center',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
@@ -262,7 +263,7 @@ function WaitingRoom({roomCode,players,onFillBots}){
 }
 
 /* ── GAME ── */
-export function Game({gs,socket,roomCode}){
+export function Game({gs,socket,roomCode,onExit}){
   const[selected,setSelected]=useState([]);
   const[chamVal,setChamVal]=useState(null);
   const[arrangeMode,setArrangeMode]=useState(false);
@@ -272,18 +273,19 @@ export function Game({gs,socket,roomCode}){
   const[logOpen,setLogOpen]=useState(false);
   const[reactionTarget,setReactionTarget]=useState(null);
   const[floatingReactions,setFloatingReactions]=useState([]);
+  const[confirmExit,setConfirmExit]=useState(false);
   const dragIdx=useRef(null);
   const[dragOverIdx,setDragOverIdx]=useState(null);
   const prevPhaseRef=useRef(gs.phase);
 
-  const{players,table,log,finished,phase,myCards,mySeatIndex,currentPlayer,turnDeadline,champion}=gs;
+  const{players,table,log,finished,phase,myCards,mySeatIndex,currentPlayer,turnDeadline,champion,abandoned}=gs;
   const isMyTurn=mySeatIndex===currentPlayer&&phase==='playing';
   const me=players[mySeatIndex];
   const myLV=me?.level||'4';
   const myColor=P_COLORS[mySeatIndex]||'#60a5fa';
   const isChampion=champion!==null&&champion!==undefined;
   const championPlayer=isChampion?players.find(p=>p.seatIndex===champion):null;
-  const iAmChampion=isChampion&&champion===mySeatIndex;
+  const iOwnTable=!!(isMyTurn&&table&&table.playedBy===mySeatIndex);
 
   // Reaction listener
   useEffect(()=>{
@@ -307,9 +309,8 @@ export function Game({gs,socket,roomCode}){
     return()=>clearInterval(id);
   },[turnDeadline]);
 
-  // Haptic on win/champion
   useEffect(()=>{
-    if(phase==='finished'&&prevPhaseRef.current==='playing') haptic(iAmChampion?'success':'success');
+    if(phase==='finished'&&prevPhaseRef.current==='playing') haptic('success');
     prevPhaseRef.current=phase;
   },[phase]);
 
@@ -326,7 +327,6 @@ export function Game({gs,socket,roomCode}){
   const curCombo=selected.length>0?detectCombo(selected,chamVal):null;
   const canPlayIt=!!(curCombo&&(!table||canBeat(curCombo,table.combo)));
   const canPassIt=!!(table&&table.playedBy!==mySeatIndex&&isMyTurn);
-  const iOwnTable=!!(isMyTurn&&table&&table.playedBy===mySeatIndex);
 
   function bad(){setBadAnim(true);haptic('error');setTimeout(()=>setBadAnim(false),400);}
   function toggleCard(card){if(arrangeMode||!isMyTurn) return;haptic('light');const al=selected.some(c=>c.id===card.id);const ns=al?selected.filter(c=>c.id!==card.id):[...selected,card];setSelected(ns);if(!ns.some(c=>c.type==='chameleon')) setChamVal(null);}
@@ -354,7 +354,6 @@ export function Game({gs,socket,roomCode}){
         @keyframes pulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
         @keyframes shake{0%,100%{transform:none}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-        @keyframes popIn{from{opacity:0;transform:scale(.88) translateY(6px)}to{opacity:1;transform:scale(1) translateY(0)}}
         @keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes cardDeal{from{opacity:0;transform:translateY(-12px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
         @keyframes floatUp{0%{opacity:1;transform:translate(-50%,-50%) scale(.6)}20%{opacity:1;transform:translate(-50%,-70%) scale(1.3)}100%{opacity:0;transform:translate(-50%,-160%) scale(1)}}
@@ -366,6 +365,24 @@ export function Game({gs,socket,roomCode}){
       {phase==='playing'&&(
         <div style={{position:'absolute',top:0,left:0,right:0,height:3,zIndex:10,background:'rgba(255,255,255,.05)'}}>
           <div style={{height:'100%',width:`${timerPct}%`,background:timerColor,transition:'width .5s linear,background .3s',boxShadow:`0 0 6px ${timerColor}`}}/>
+        </div>
+      )}
+
+      {/* Exit button — top-left */}
+      <button onClick={()=>setConfirmExit(true)} style={{position:'absolute',top:10,left:10,zIndex:5,padding:'4px 10px',background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.07)',borderRadius:6,cursor:'pointer',color:'rgba(255,255,255,.18)',fontSize:11,fontFamily:"'Inter',sans-serif",letterSpacing:.3}}>← выйти</button>
+
+      {/* Confirm exit overlay */}
+      {confirmExit&&(
+        <div style={{position:'absolute',inset:0,zIndex:40,background:'rgba(0,0,0,.7)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',animation:'fadeIn .15s ease'}}>
+          <div style={{background:'rgba(10,14,28,.97)',border:'1px solid rgba(255,255,255,.1)',borderRadius:16,padding:'28px 24px',maxWidth:280,width:'100%',textAlign:'center'}}>
+            <div style={{fontSize:28,marginBottom:8}}>🚪</div>
+            <div style={{fontSize:15,fontWeight:700,color:'#f8fafc',marginBottom:6,fontFamily:"'Outfit',sans-serif"}}>Выйти из игры?</div>
+            <div style={{fontSize:12,color:'rgba(255,255,255,.35)',marginBottom:20,lineHeight:1.5}}>Прогресс сессии сохранится для остальных игроков</div>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>setConfirmExit(false)} style={{flex:1,padding:'11px',background:'rgba(255,255,255,.05)',color:'rgba(255,255,255,.5)',border:'1px solid rgba(255,255,255,.1)',borderRadius:10,cursor:'pointer',fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:600}}>Остаться</button>
+              <button onClick={()=>{haptic('warning');onExit();}} style={{flex:1,padding:'11px',background:'rgba(239,68,68,.12)',color:'#f87171',border:'1px solid rgba(239,68,68,.25)',borderRadius:10,cursor:'pointer',fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:700}}>Выйти</button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -398,8 +415,6 @@ export function Game({gs,socket,roomCode}){
         <div style={{display:'flex',alignItems:'center',flexShrink:0}}>
           <Seat {...left} position="left" onReact={setReactionTarget}/>
         </div>
-
-        {/* TABLE */}
         <div style={{flex:1,position:'relative',alignSelf:'stretch',display:'flex',alignItems:'center',justifyContent:'center'}}>
           <div style={{position:'absolute',inset:0,background:'radial-gradient(ellipse at 50% 45%,#1a5c30 0%,#134522 40%,#0b2e17 70%,#071b0e 100%)',borderRadius:'44%',border:'3px solid #061208',boxShadow:'inset 0 8px 40px rgba(0,0,0,.6),0 10px 50px rgba(0,0,0,.7)'}}>
             <div style={{position:'absolute',inset:10,borderRadius:'44%',border:'1px solid rgba(255,255,255,.04)',pointerEvents:'none'}}/>
@@ -435,7 +450,6 @@ export function Game({gs,socket,roomCode}){
             <div style={{fontSize:8,color:'rgba(255,255,255,.08)',letterSpacing:3,fontFamily:'monospace'}}>{roomCode}</div>
           </div>
         </div>
-
         <div style={{display:'flex',alignItems:'center',flexShrink:0}}>
           <Seat {...right} position="right" onReact={setReactionTarget}/>
         </div>
@@ -504,19 +518,27 @@ export function Game({gs,socket,roomCode}){
         )}
       </div>
 
-      {/* Finished overlay */}
+      {/* Finished / Champion / Abandoned overlay */}
       {phase==='finished'&&(
         <div style={{position:'absolute',inset:0,zIndex:20,background:'rgba(5,8,16,.94)',backdropFilter:'blur(10px)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',animation:'fadeIn .4s ease',padding:24}}>
-          {isChampion?(
-            /* ── CHAMPION SCREEN ── */
+          {abandoned?(
+            /* ── ABANDONED ── */
+            <>
+              <div style={{fontSize:52,marginBottom:8}}>🚪</div>
+              <div style={{fontSize:18,fontWeight:900,letterSpacing:2,marginBottom:6,fontFamily:"'Outfit',sans-serif",color:'rgba(255,255,255,.6)'}}>ИГРА ЗАВЕРШЕНА</div>
+              <div style={{fontSize:12,color:'rgba(255,255,255,.3)',marginBottom:28,textAlign:'center',lineHeight:1.6}}>Игрок покинул игру</div>
+              <button onClick={onExit} style={{padding:'13px 36px',background:'rgba(255,255,255,.07)',color:'rgba(255,255,255,.6)',border:'1px solid rgba(255,255,255,.12)',borderRadius:12,cursor:'pointer',fontWeight:700,fontSize:15,fontFamily:"'Outfit',sans-serif",letterSpacing:.5}}>В ЛОББИ →</button>
+            </>
+          ):isChampion?(
+            /* ── CHAMPION ── */
             <>
               <div style={{fontSize:72,marginBottom:4,animation:'starPop .5s ease both'}}>&#x1F451;</div>
-              <div style={{fontSize:11,letterSpacing:6,color:'rgba(245,158,11,.5)',fontFamily:"'Outfit',sans-serif",fontWeight:600,marginBottom:8,animation:'fadeIn .4s .2s both'}}>ЧЕМПИОН СЕССИИ</div>
+              <div style={{fontSize:11,letterSpacing:6,color:'rgba(245,158,11,.5)',fontFamily:"'Outfit',sans-serif",fontWeight:600,marginBottom:8}}>ЧЕМПИОН СЕССИИ</div>
               <div style={{fontSize:32,fontWeight:900,letterSpacing:2,fontFamily:"'Outfit',sans-serif",background:'linear-gradient(135deg,#fcd34d,#f59e0b,#fcd34d)',WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent',animation:'champGlow 2s ease infinite',marginBottom:4,textAlign:'center'}}>
                 {championPlayer?.name}
               </div>
-              <div style={{fontSize:36,color:'#f59e0b',fontFamily:"'Georgia',serif",fontWeight:900,marginBottom:28,textShadow:'0 0 20px rgba(245,158,11,.8)',animation:'fadeIn .3s .3s both'}}>3</div>
-              <div style={{width:'100%',maxWidth:290,display:'flex',flexDirection:'column',gap:6,marginBottom:24}}>
+              <div style={{fontSize:36,color:'#f59e0b',fontFamily:"'Georgia',serif",fontWeight:900,marginBottom:24,textShadow:'0 0 20px rgba(245,158,11,.8)'}}>3</div>
+              <div style={{width:'100%',maxWidth:290,display:'flex',flexDirection:'column',gap:6,marginBottom:20}}>
                 {[...players].sort((a,b)=>(b.levelIdx??0)-(a.levelIdx??0)).map((p,rank)=>(
                   <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 16px',borderRadius:10,background:p.seatIndex===champion?'rgba(245,158,11,.1)':'rgba(255,255,255,.03)',border:`1px solid ${p.seatIndex===champion?'rgba(245,158,11,.35)':'rgba(255,255,255,.05)'}`}}>
                     <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -530,18 +552,20 @@ export function Game({gs,socket,roomCode}){
                   </div>
                 ))}
               </div>
-              {mySeatIndex===0?(
-                <button onClick={()=>{haptic('impact');socket.emit('newGame',{code:roomCode});}} style={{padding:'13px 36px',background:'linear-gradient(135deg,#d97706,#f59e0b)',color:'#111',border:'none',borderRadius:12,cursor:'pointer',fontWeight:800,fontSize:15,fontFamily:"'Outfit',sans-serif",letterSpacing:.5,boxShadow:'0 4px 24px rgba(245,158,11,.5)',transition:'all .2s'}}>НОВАЯ СЕССИЯ →</button>
-              ):(
-                <div style={{fontSize:12,color:'rgba(255,255,255,.22)',letterSpacing:.5}}>Ожидаем хоста...</div>
-              )}
+              <div style={{display:'flex',gap:10}}>
+                {mySeatIndex===0&&(
+                  <button onClick={()=>{haptic('impact');socket.emit('newGame',{code:roomCode});}} style={{padding:'13px 28px',background:'linear-gradient(135deg,#d97706,#f59e0b)',color:'#111',border:'none',borderRadius:12,cursor:'pointer',fontWeight:800,fontSize:14,fontFamily:"'Outfit',sans-serif",letterSpacing:.5,boxShadow:'0 4px 24px rgba(245,158,11,.5)'}}>НОВАЯ СЕССИЯ</button>
+                )}
+                <button onClick={onExit} style={{padding:'13px 20px',background:'rgba(255,255,255,.05)',color:'rgba(255,255,255,.4)',border:'1px solid rgba(255,255,255,.1)',borderRadius:12,cursor:'pointer',fontWeight:600,fontSize:14,fontFamily:"'Outfit',sans-serif"}}>В лобби</button>
+              </div>
+              {mySeatIndex!==0&&<div style={{marginTop:12,fontSize:12,color:'rgba(255,255,255,.22)',letterSpacing:.5}}>Ожидаем хоста...</div>}
             </>
           ):(
             /* ── NORMAL ROUND END ── */
             <>
               <div style={{fontSize:48,marginBottom:8}}>🏆</div>
               <div style={{fontSize:22,fontWeight:900,letterSpacing:4,marginBottom:6,fontFamily:"'Outfit',sans-serif",background:'linear-gradient(135deg,#fcd34d,#f59e0b)',WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent'}}>ПАРТИЯ ОКОНЧЕНА</div>
-              <div style={{fontSize:10,color:'rgba(255,255,255,.2)',letterSpacing:3,fontFamily:"'Outfit',sans-serif",marginBottom:28}}>РЕЗУЛЬТАТЫ</div>
+              <div style={{fontSize:10,color:'rgba(255,255,255,.2)',letterSpacing:3,fontFamily:"'Outfit',sans-serif",marginBottom:24}}>РЕЗУЛЬТАТЫ</div>
               {[...players].sort((a,b)=>(b.levelIdx??0)-(a.levelIdx??0)).map((p,rank)=>(
                 <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 20px',margin:'4px 0',borderRadius:12,width:'100%',maxWidth:290,background:rank===0?'rgba(245,158,11,.08)':'rgba(255,255,255,.03)',border:`1px solid ${rank===0?'rgba(245,158,11,.25)':'rgba(255,255,255,.05)'}`}}>
                   <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -554,11 +578,13 @@ export function Game({gs,socket,roomCode}){
                   </div>
                 </div>
               ))}
-              {mySeatIndex===0?(
-                <button onClick={()=>{haptic('impact');socket.emit('newGame',{code:roomCode});}} style={{marginTop:24,padding:'13px 36px',background:'linear-gradient(135deg,#d97706,#f59e0b)',color:'#111',border:'none',borderRadius:12,cursor:'pointer',fontWeight:800,fontSize:15,fontFamily:"'Outfit',sans-serif",letterSpacing:.5,boxShadow:'0 4px 24px rgba(245,158,11,.4)',transition:'all .2s'}}>НОВАЯ ИГРА →</button>
-              ):(
-                <div style={{marginTop:20,fontSize:12,color:'rgba(255,255,255,.22)',letterSpacing:.5}}>Ожидаем хоста...</div>
-              )}
+              <div style={{display:'flex',gap:10,marginTop:20}}>
+                {mySeatIndex===0&&(
+                  <button onClick={()=>{haptic('impact');socket.emit('newGame',{code:roomCode});}} style={{padding:'13px 28px',background:'linear-gradient(135deg,#d97706,#f59e0b)',color:'#111',border:'none',borderRadius:12,cursor:'pointer',fontWeight:800,fontSize:14,fontFamily:"'Outfit',sans-serif",letterSpacing:.5,boxShadow:'0 4px 24px rgba(245,158,11,.4)'}}>НОВАЯ ИГРА</button>
+                )}
+                <button onClick={onExit} style={{padding:'13px 20px',background:'rgba(255,255,255,.05)',color:'rgba(255,255,255,.4)',border:'1px solid rgba(255,255,255,.1)',borderRadius:12,cursor:'pointer',fontWeight:600,fontSize:14,fontFamily:"'Outfit',sans-serif"}}>В лобби</button>
+              </div>
+              {mySeatIndex!==0&&<div style={{marginTop:12,fontSize:12,color:'rgba(255,255,255,.22)',letterSpacing:.5}}>Ожидаем хоста...</div>}
             </>
           )}
         </div>
@@ -599,9 +625,17 @@ export default function App(){
   function handleCreate(name){setError('');socketRef.current?.emit('createRoom',{playerName:name});}
   function handleJoin(name,code){setError('');socketRef.current?.emit('joinRoom',{playerName:name,code});}
   function handleFillBots(){socketRef.current?.emit('fillWithBots',{code:roomCode});}
+  function handleExit(){
+    localStorage.removeItem('sanzhut_room');
+    localStorage.removeItem('sanzhut_player_id');
+    sessionSavedRef.current=false;
+    setGs(null);
+    setRoomCode('');
+    setScreen('lobby');
+  }
 
   if(screen==='lobby') return <Lobby onCreate={handleCreate} onJoin={handleJoin} error={error}/>;
-  if(screen==='waiting'&&gs) return <WaitingRoom roomCode={roomCode||gs?.roomCode} players={gs.players} onFillBots={handleFillBots}/>;
-  if(screen==='game'&&gs) return <Game gs={gs} socket={socketRef.current} roomCode={roomCode||gs?.roomCode}/>;
+  if(screen==='waiting'&&gs) return <WaitingRoom roomCode={roomCode||gs?.roomCode} players={gs.players} onFillBots={handleFillBots} onExit={handleExit}/>;
+  if(screen==='game'&&gs) return <Game gs={gs} socket={socketRef.current} roomCode={roomCode||gs?.roomCode} onExit={handleExit}/>;
   return(<div style={{minHeight:'100vh',background:'linear-gradient(160deg,#080d1a,#050810)',display:'flex',alignItems:'center',justifyContent:'center',color:'#f59e0b',fontSize:16,fontFamily:"'Outfit',sans-serif",letterSpacing:3}}>Подключение...</div>);
 }
