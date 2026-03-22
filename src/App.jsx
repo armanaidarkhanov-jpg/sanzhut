@@ -867,17 +867,50 @@ export default function App(){
   const[roomCode,setRoomCode]=useState('');
   const[error,setError]=useState('');
   const socketRef=useRef(null);
+  const sessionSavedRef=useRef(false);
 
   useEffect(()=>{
     const socket=io(SERVER_URL,{transports:['websocket','polling']});
     socketRef.current=socket;
-    socket.on('roomCreated',({code})=>setRoomCode(code));
+
+    socket.on('connect',()=>{
+      const savedCode=localStorage.getItem('sanzhut_room');
+      const savedPlayerId=localStorage.getItem('sanzhut_player_id');
+      if(savedCode&&savedPlayerId){
+        sessionSavedRef.current=true;
+        socket.emit('rejoinRoom',{code:savedCode,playerId:savedPlayerId});
+      }
+    });
+
+    socket.on('roomCreated',({code})=>{
+      setRoomCode(code);
+      localStorage.setItem('sanzhut_room',code);
+      localStorage.setItem('sanzhut_player_id',socket.id);
+      sessionSavedRef.current=true;
+    });
+
     socket.on('gameState',(state)=>{
       setGs(state);
+      if(state.roomCode) setRoomCode(state.roomCode);
       if(state.phase==='playing'||state.phase==='finished') setScreen('game');
       else if(state.players?.length>0) setScreen('waiting');
+      if(!sessionSavedRef.current&&state.roomCode){
+        localStorage.setItem('sanzhut_room',state.roomCode);
+        localStorage.setItem('sanzhut_player_id',socket.id);
+        sessionSavedRef.current=true;
+      }
     });
-    socket.on('error',(msg)=>{setError(msg);setTimeout(()=>setError(''),3000);});
+
+    socket.on('error',(msg)=>{
+      setError(msg);
+      setTimeout(()=>setError(''),3000);
+      if(msg==='Комната не найдена'){
+        localStorage.removeItem('sanzhut_room');
+        localStorage.removeItem('sanzhut_player_id');
+        sessionSavedRef.current=false;
+      }
+    });
+
     return()=>socket.disconnect();
   },[]);
 
