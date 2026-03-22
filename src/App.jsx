@@ -4,7 +4,8 @@ import { io } from "socket.io-client";
 const SERVER_URL = "https://sanzhut-server-production.up.railway.app";
 
 const RED_SUITS  = new Set(['♥','♦']);
-const P_COLORS   = ['#e05c5c','#5b9cf6','#52c97a','#f0a24a'];
+const P_COLORS   = ['#f87171','#60a5fa','#4ade80','#fb923c'];
+const P_AVATARS  = ['♠','♦','♣','♥'];
 const CLABELS    = {single:'Одна карта',pair:'Пара',small_bomb:'Малая бомба',
   big_bomb:'Большая бомба',hatar:'Хатар',sanzhut:'Санжут'};
 const REG_VALS   = ['4','5','6','7','8','9','10','J','Q','K','A','2','3'];
@@ -71,103 +72,199 @@ function sortCards(h){
   });
 }
 
-/* ── Card ── */
+/* ── Card Face ── */
 function CardFace({card,sel,onClick,sm,levelVal,dragHandlers,isDragOver,faceDown}){
-  if(faceDown) return(
-    <div style={{
-      width:sm?26:42,height:sm?36:60,
-      background:'linear-gradient(145deg,#1a5c2a,#0d3316)',
-      border:'1.5px solid rgba(255,255,255,.12)',
-      borderRadius:sm?4:7,flexShrink:0,
-      boxShadow:'0 2px 5px rgba(0,0,0,.5)',
-      display:'flex',alignItems:'center',justifyContent:'center',
-    }}>
-      <div style={{width:'70%',height:'70%',border:'1px solid rgba(255,255,255,.08)',borderRadius:3}}/>
-    </div>
-  );
-  let top,bot,color,bg,bord;
-  if(card.type==='joker_black'){top='J';bot='♟';color='#222';bg='linear-gradient(145deg,#eee,#ccc)';bord='#888';}
-  else if(card.type==='joker_red'){top='J';bot='♦';color='#8b0000';bg='linear-gradient(145deg,#ffe0e0,#ffb0b0)';bord='#cc4444';}
-  else if(card.type==='chameleon'){top='✦';bot='CH';color='#6a0dad';bg='linear-gradient(145deg,#f3e6ff,#ddb8ff)';bord='#9b59b6';}
-  else{
-    top=card.value;bot=card.suit;
-    const red=RED_SUITS.has(card.suit);
-    color=red?'#b91c1c':'#1a1a2e';
-    bg='linear-gradient(145deg,#fffef8,#faf4e0)';
-    bord=red?'#e8b4b4':'#c8c4a8';
+  const W = sm ? 28 : 46;
+  const H = sm ? 40 : 66;
+
+  if(faceDown){
+    return(
+      <div style={{
+        width:W,height:H,
+        background:'linear-gradient(145deg,#1e3a5f,#0f2040)',
+        border:'1.5px solid rgba(99,179,237,0.15)',
+        borderRadius:sm?5:8,flexShrink:0,
+        boxShadow:'0 3px 8px rgba(0,0,0,.6)',
+        display:'flex',alignItems:'center',justifyContent:'center',
+        position:'relative',overflow:'hidden',
+      }}>
+        <div style={{
+          width:'80%',height:'80%',
+          backgroundImage:`repeating-linear-gradient(45deg,rgba(255,255,255,.03) 0px,rgba(255,255,255,.03) 1px,transparent 1px,transparent 8px),
+            repeating-linear-gradient(-45deg,rgba(255,255,255,.03) 0px,rgba(255,255,255,.03) 1px,transparent 1px,transparent 8px)`,
+          border:'1px solid rgba(255,255,255,.06)',
+          borderRadius:sm?3:5,
+        }}/>
+      </div>
+    );
   }
+
+  let cardClass='';
+  let topLabel,botLabel,centerSuit,topColor,bgGrad,borderColor;
+
+  if(card.type==='joker_black'){
+    topLabel='JK'; botLabel='♟'; centerSuit='🃏';
+    topColor='#374151'; bgGrad='linear-gradient(145deg,#f9fafb,#e5e7eb)';
+    borderColor='#9ca3af';
+  } else if(card.type==='joker_red'){
+    topLabel='JK'; botLabel='♦'; centerSuit='🃏';
+    topColor='#991b1b'; bgGrad='linear-gradient(145deg,#fff5f5,#fecaca)';
+    borderColor='#f87171';
+  } else if(card.type==='chameleon'){
+    topLabel='✦'; botLabel='★'; centerSuit='✦';
+    topColor='#6b21a8'; bgGrad='linear-gradient(145deg,#faf5ff,#e9d5ff)';
+    borderColor='#a855f7';
+  } else {
+    topLabel=card.value; botLabel=card.suit; centerSuit=card.suit;
+    const red=RED_SUITS.has(card.suit);
+    topColor=red?'#c0392b':'#1a1a2e';
+    bgGrad='linear-gradient(145deg,#fffef8,#faf4e0)';
+    borderColor=red?'#f87171':'#d4d0b8';
+  }
+
   const isLv=card.value===levelVal&&card.type==='regular'&&!sm;
-  const W=sm?26:42, H=sm?36:60;
+  const fs = sm ? { val:9, suit:8, center:12 } : { val:13, suit:10, center:20 };
+
   return(
     <div onClick={onClick} {...(dragHandlers||{})} style={{
-      width:W,height:H,background:bg,
-      border:`2px solid ${isDragOver?'#60a5fa':sel?'#f0c040':isLv?'#52c97a':bord}`,
-      borderRadius:sm?4:7,display:'flex',flexDirection:'column',
-      alignItems:'center',justifyContent:'center',
+      width:W,height:H,
+      background:bgGrad,
+      border:`2px solid ${isDragOver?'#60a5fa':sel?'#f59e0b':isLv?'#4ade80':borderColor}`,
+      borderRadius:sm?5:8,
+      display:'flex',flexDirection:'column',
+      alignItems:'center',justifyContent:'space-between',
       cursor:dragHandlers?'grab':onClick?'pointer':'default',
-      transform:sel?'translateY(-12px) scale(1.05)':isDragOver?'scale(1.06)':'none',
-      transition:'transform .14s cubic-bezier(.34,1.56,.64,1),box-shadow .14s,border-color .14s',
-      boxShadow:isDragOver?'0 0 0 2px #60a5fa':sel?'0 8px 20px rgba(240,192,64,.5)':isLv?'0 2px 8px rgba(82,201,122,.3)':'0 2px 5px rgba(0,0,0,.35)',
-      color,fontWeight:'bold',userSelect:'none',flexShrink:0,position:'relative',
-      fontFamily:"'Georgia',serif",
+      transform:sel?`translateY(-14px) scale(1.07)`:isDragOver?'scale(1.07)':'none',
+      transition:'transform .15s cubic-bezier(.34,1.56,.64,1),box-shadow .15s,border-color .15s',
+      boxShadow:sel
+        ?`0 10px 28px rgba(245,158,11,.45), 0 0 0 1px rgba(245,158,11,.3)`
+        :isDragOver?'0 0 0 3px #60a5fa'
+        :isLv?'0 2px 10px rgba(74,222,128,.3)'
+        :'0 3px 8px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.8)',
+      color:topColor,fontWeight:'bold',userSelect:'none',flexShrink:0,
+      position:'relative',padding:sm?'2px 3px':'3px 4px',
     }}>
-      {isLv&&<div style={{position:'absolute',top:2,right:2,width:5,height:5,
-        borderRadius:'50%',background:'#52c97a',boxShadow:'0 0 5px #52c97a'}}/>}
-      <div style={{fontSize:sm?9:top.length>1?10:15,lineHeight:1.1,fontWeight:'900'}}>{top}</div>
-      {bot&&<div style={{fontSize:sm?8:11,lineHeight:1,opacity:.88}}>{bot}</div>}
+      {isLv&&<div style={{
+        position:'absolute',top:2,right:2,width:5,height:5,
+        borderRadius:'50%',background:'#4ade80',
+        boxShadow:'0 0 6px #4ade80',
+      }}/>}
+      {/* Top corner */}
+      <div style={{alignSelf:'flex-start',lineHeight:1.1}}>
+        <div style={{fontSize:fs.val,fontWeight:'900',letterSpacing:'-0.03em'}}>{topLabel}</div>
+        <div style={{fontSize:fs.suit,lineHeight:1}}>{botLabel}</div>
+      </div>
+      {/* Center suit */}
+      {!sm&&<div style={{fontSize:fs.center,opacity:.7,lineHeight:1}}>{centerSuit}</div>}
+      {/* Bottom corner (rotated) */}
+      <div style={{alignSelf:'flex-end',lineHeight:1.1,transform:'rotate(180deg)'}}>
+        <div style={{fontSize:fs.val,fontWeight:'900',letterSpacing:'-0.03em'}}>{topLabel}</div>
+        <div style={{fontSize:fs.suit,lineHeight:1}}>{botLabel}</div>
+      </div>
     </div>
   );
 }
 
 /* ── Player Seat ── */
 function Seat({player,isActive,cardCount,finished,position}){
-  if(!player) return <div style={{width:60}}/>;
-  const color=P_COLORS[player.seatIndex??0];
-  const isTop=position==='top';
-  const isLeft=position==='left';
-  const isRight=position==='right';
+  if(!player) return <div style={{width:56}}/>;
 
-  const cards=Array.from({length:Math.min(cardCount,8)});
-  const extra=cardCount>8?cardCount-8:0;
+  const color = P_COLORS[player.seatIndex??0];
+  const avatar = P_AVATARS[player.seatIndex??0];
+  const isTop = position==='top';
+  const isLeft = position==='left';
+  const isRight = position==='right';
+
+  const visibleCards = Math.min(cardCount, 6);
+  const extra = cardCount > 6 ? cardCount - 6 : 0;
+
+  const cardStack = (
+    <div style={{
+      display:'flex',
+      flexDirection: isTop ? 'row' : 'column',
+      gap: isTop ? -6 : -8,
+      alignItems:'center',
+    }}>
+      {Array.from({length:visibleCards}).map((_,i)=>(
+        <div key={i} style={{
+          width: isTop ? 14 : 10,
+          height: isTop ? 20 : 14,
+          background:'linear-gradient(145deg,#1e3a5f,#0f2040)',
+          border:'1px solid rgba(99,179,237,0.18)',
+          borderRadius:2,
+          boxShadow:'0 1px 3px rgba(0,0,0,.5)',
+          marginLeft: isTop ? (i>0?-8:0) : 0,
+          marginTop: isTop ? 0 : (i>0?-8:0),
+        }}/>
+      ))}
+      {extra>0&&<span style={{fontSize:8,color:'rgba(255,255,255,.35)',marginLeft:2}}>+{extra}</span>}
+    </div>
+  );
+
+  const badge = (
+    <div style={{
+      display:'flex',flexDirection:'column',alignItems:'center',gap:3,
+    }}>
+      {/* Avatar */}
+      <div style={{
+        width:36,height:36,borderRadius:'50%',
+        background:isActive?`${color}22`:'rgba(255,255,255,.05)',
+        border:`2px solid ${isActive?color:finished?`${color}44`:'rgba(255,255,255,.08)'}`,
+        boxShadow:isActive?`0 0 16px ${color}66,0 0 32px ${color}22`:'none',
+        display:'flex',alignItems:'center',justifyContent:'center',
+        fontSize:14,transition:'all .3s',flexShrink:0,
+        position:'relative',
+      }}>
+        <span style={{color:isActive?color:'rgba(255,255,255,.3)'}}>{avatar}</span>
+        {isActive&&<div style={{
+          position:'absolute',bottom:-1,right:-1,
+          width:9,height:9,borderRadius:'50%',
+          background:color,border:'1.5px solid #0a0a0f',
+          boxShadow:`0 0 6px ${color}`,
+          animation:'pulse 1.2s infinite',
+        }}/>}
+        {finished&&<div style={{
+          position:'absolute',inset:0,borderRadius:'50%',
+          background:'rgba(0,0,0,.55)',
+          display:'flex',alignItems:'center',justifyContent:'center',
+          fontSize:12,
+        }}>✓</div>}
+      </div>
+      {/* Name + level */}
+      <div style={{textAlign:'center'}}>
+        <div style={{
+          fontSize:9,fontWeight:700,
+          color:isActive?color:'rgba(255,255,255,.35)',
+          maxWidth:52,overflow:'hidden',textOverflow:'ellipsis',
+          whiteSpace:'nowrap',letterSpacing:.5,
+        }}>{player.name}</div>
+        <div style={{
+          fontSize:12,fontWeight:900,
+          color:'#f59e0b',
+          textShadow:isActive?'0 0 10px rgba(245,158,11,.6)':'none',
+          fontFamily:"'Georgia',serif",
+        }}>{player.level}</div>
+      </div>
+    </div>
+  );
+
+  if(isTop){
+    return(
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,opacity:finished?.5:1}}>
+        {badge}
+        {cardStack}
+      </div>
+    );
+  }
 
   return(
     <div style={{
       display:'flex',
-      flexDirection: isTop?'column':'row',
-      alignItems:'center',gap:4,
-      opacity:finished?.45:1,
+      flexDirection: isLeft ? 'row' : 'row-reverse',
+      alignItems:'center',gap:5,opacity:finished?.5:1,
     }}>
-      {/* Badge */}
-      <div style={{
-        padding:'4px 8px',borderRadius:16,
-        background:isActive?`${color}1a`:'rgba(0,0,0,.45)',
-        border:`1.5px solid ${isActive?color:finished?color+'33':'rgba(255,255,255,.08)'}`,
-        boxShadow:isActive?`0 0 14px ${color}55`:'none',
-        display:'flex',alignItems:'center',gap:5,
-        transition:'all .3s',flexShrink:0,
-        order: isLeft?1:isRight?0:0,
-      }}>
-        {isActive&&<div style={{width:5,height:5,borderRadius:'50%',background:color,animation:'pulse 1s infinite'}}/>}
-        <span style={{fontSize:10,color:isActive?color:'rgba(255,255,255,.45)',fontWeight:'bold',
-          whiteSpace:'nowrap',maxWidth:56,overflow:'hidden',textOverflow:'ellipsis'}}>
-          {player.name}
-        </span>
-        <span style={{fontSize:13,color:'#f0c040',fontWeight:'bold',fontFamily:"'Georgia',serif"}}>{player.level}</span>
-        {finished&&<span style={{fontSize:9,color:color}}>✓</span>}
-      </div>
-
-      {/* Face-down cards */}
-      <div style={{
-        display:'flex',
-        flexDirection: isTop?'row':'column',
-        gap:2,flexShrink:0,
-        order: isLeft?0:isRight?1:1,
-      }}>
-        {cards.map((_,i)=>(
-          <CardFace key={i} card={{}} faceDown sm/>
-        ))}
-        {extra>0&&<div style={{fontSize:8,color:'rgba(255,255,255,.3)',textAlign:'center',alignSelf:'center'}}>+{extra}</div>}
-      </div>
+      {badge}
+      {cardStack}
     </div>
   );
 }
@@ -180,47 +277,103 @@ function Lobby({onCreate,onJoin,error}){
   const tgName=window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name;
   useEffect(()=>{if(tgName&&!name) setName(tgName);},[]);
 
-  const inp={padding:'13px 16px',width:'100%',background:'rgba(255,255,255,.06)',
-    color:'#f0e6c8',border:'1px solid rgba(255,255,255,.12)',borderRadius:10,
-    fontSize:16,fontFamily:"'Georgia',serif",outline:'none'};
-  const btn=(on)=>({padding:'14px',width:'100%',
-    background:on?'linear-gradient(135deg,#c8920e,#f0c040)':'rgba(255,255,255,.05)',
-    color:on?'#111':'rgba(255,255,255,.2)',
-    border:`1px solid ${on?'#f0c040':'rgba(255,255,255,.1)'}`,
-    borderRadius:12,cursor:on?'pointer':'default',fontWeight:'bold',fontSize:16,
-    fontFamily:"'Georgia',serif",boxShadow:on?'0 4px 20px rgba(240,192,64,.35)':'none',transition:'all .2s'});
+  const S = {
+    wrap:{
+      minHeight:'100vh',
+      background:'radial-gradient(ellipse at 40% 0%,#0d1f3c 0%,#050810 60%)',
+      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+      padding:24,color:'#f0e6c8',fontFamily:"'Inter',sans-serif",
+    },
+    inp:{
+      padding:'13px 16px',width:'100%',
+      background:'rgba(255,255,255,.05)',
+      color:'#f8fafc',border:'1px solid rgba(255,255,255,.1)',
+      borderRadius:12,fontSize:16,outline:'none',
+      fontFamily:"'Inter',sans-serif",
+      transition:'border-color .2s,box-shadow .2s',
+    },
+    btnPrimary:{
+      padding:'14px',width:'100%',
+      background:'linear-gradient(135deg,#d97706,#f59e0b)',
+      color:'#111',border:'none',borderRadius:12,
+      cursor:'pointer',fontWeight:800,fontSize:15,
+      fontFamily:"'Outfit',sans-serif",letterSpacing:.5,
+      boxShadow:'0 4px 20px rgba(245,158,11,.35)',
+      transition:'all .2s',
+    },
+    btnGhost:{
+      padding:'13px',width:'100%',
+      background:'rgba(255,255,255,.04)',
+      color:'rgba(255,255,255,.5)',
+      border:'1px solid rgba(255,255,255,.1)',
+      borderRadius:12,cursor:'pointer',fontWeight:600,
+      fontSize:15,fontFamily:"'Outfit',sans-serif",
+      transition:'all .2s',
+    },
+    back:{
+      padding:'10px',background:'transparent',
+      color:'rgba(255,255,255,.25)',border:'none',
+      cursor:'pointer',fontSize:13,fontFamily:"'Inter',sans-serif",
+    },
+  };
 
   return(
-    <div style={{minHeight:'100vh',
-      background:'radial-gradient(ellipse at 50% 0%,#0d2a10 0%,#060e07 70%)',
-      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
-      padding:24,fontFamily:"'Georgia',serif",color:'#f0e6c8'}}>
-      <div style={{textAlign:'center',marginBottom:44}}>
-        <div style={{fontSize:34,fontWeight:'bold',color:'#f0c040',letterSpacing:6,
-          textShadow:'0 0 60px rgba(240,192,64,.45)'}}>🃏 САНЖУТ</div>
-        <div style={{fontSize:10,color:'rgba(240,192,64,.3)',letterSpacing:4,marginTop:5}}>ОНЛАЙН · 4 ИГРОКА</div>
+    <div style={S.wrap}>
+      {/* Logo */}
+      <div style={{textAlign:'center',marginBottom:48}}>
+        <div style={{
+          fontSize:11,letterSpacing:6,color:'rgba(245,158,11,.4)',
+          fontFamily:"'Outfit',sans-serif",fontWeight:600,marginBottom:10,
+        }}>КАРТОЧНАЯ ИГРА</div>
+        <div style={{
+          fontSize:42,fontWeight:900,letterSpacing:8,
+          fontFamily:"'Outfit',sans-serif",
+          background:'linear-gradient(135deg,#fcd34d,#f59e0b,#d97706)',
+          WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent',
+          filter:'drop-shadow(0 0 40px rgba(245,158,11,.4))',
+        }}>🃏 САНЖУТ</div>
+        <div style={{
+          marginTop:10,fontSize:10,color:'rgba(255,255,255,.15)',
+          letterSpacing:4,fontFamily:"'Outfit',sans-serif",
+        }}>ОНЛАЙН · 4 ИГРОКА</div>
       </div>
-      {error&&<div style={{marginBottom:14,padding:'9px 16px',background:'rgba(192,57,43,.18)',
-        border:'1px solid rgba(192,57,43,.35)',borderRadius:8,fontSize:12,color:'#ff9080'}}>{error}</div>}
+
+      {error&&(
+        <div style={{
+          marginBottom:14,padding:'10px 16px',
+          background:'rgba(239,68,68,.1)',border:'1px solid rgba(239,68,68,.25)',
+          borderRadius:10,fontSize:12,color:'#fca5a5',
+          maxWidth:300,width:'100%',textAlign:'center',
+        }}>{error}</div>
+      )}
+
       <div style={{width:'100%',maxWidth:300,display:'flex',flexDirection:'column',gap:10}}>
         {!mode?(
           <>
-            <button onClick={()=>setMode('create')} style={btn(true)}>СОЗДАТЬ КОМНАТУ</button>
-            <button onClick={()=>setMode('join')} style={{...btn(false),color:'rgba(255,255,255,.5)',border:'1px solid rgba(255,255,255,.14)'}}>ВОЙТИ В КОМНАТУ</button>
+            <button onClick={()=>setMode('create')} style={S.btnPrimary}>СОЗДАТЬ КОМНАТУ</button>
+            <button onClick={()=>setMode('join')} style={S.btnGhost}>ВОЙТИ В КОМНАТУ</button>
           </>
         ):mode==='create'?(
           <>
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Твоё имя" maxLength={16} style={inp}/>
-            <button onClick={()=>name.trim()&&onCreate(name.trim())} style={btn(!!name.trim())}>СОЗДАТЬ</button>
-            <button onClick={()=>setMode(null)} style={{padding:'10px',background:'transparent',color:'rgba(255,255,255,.25)',border:'none',cursor:'pointer',fontSize:13}}>← Назад</button>
+            <input value={name} onChange={e=>setName(e.target.value)}
+              placeholder="Твоё имя" maxLength={16} style={S.inp}/>
+            <button onClick={()=>name.trim()&&onCreate(name.trim())}
+              style={{...S.btnPrimary,opacity:name.trim()?1:.4}}>СОЗДАТЬ</button>
+            <button onClick={()=>setMode(null)} style={S.back}>← Назад</button>
           </>
         ):(
           <>
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Твоё имя" maxLength={16} style={inp}/>
-            <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="КОД" maxLength={6}
-              style={{...inp,fontSize:24,letterSpacing:8,textAlign:'center',color:'#f0c040',border:'1px solid rgba(240,192,64,.22)'}}/>
-            <button onClick={()=>name.trim()&&code.trim()&&onJoin(name.trim(),code.trim())} style={btn(!!(name.trim()&&code.trim()))}>ВОЙТИ</button>
-            <button onClick={()=>setMode(null)} style={{padding:'10px',background:'transparent',color:'rgba(255,255,255,.25)',border:'none',cursor:'pointer',fontSize:13}}>← Назад</button>
+            <input value={name} onChange={e=>setName(e.target.value)}
+              placeholder="Твоё имя" maxLength={16} style={S.inp}/>
+            <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())}
+              placeholder="КОД КОМНАТЫ" maxLength={6}
+              style={{...S.inp,fontSize:22,letterSpacing:8,textAlign:'center',color:'#f59e0b'}}/>
+            <button
+              onClick={()=>name.trim()&&code.trim()&&onJoin(name.trim(),code.trim())}
+              style={{...S.btnPrimary,opacity:(name.trim()&&code.trim())?1:.4}}>
+              ВОЙТИ
+            </button>
+            <button onClick={()=>setMode(null)} style={S.back}>← Назад</button>
           </>
         )}
       </div>
@@ -231,36 +384,72 @@ function Lobby({onCreate,onJoin,error}){
 /* ── Waiting ── */
 function WaitingRoom({roomCode,players}){
   return(
-    <div style={{minHeight:'100vh',background:'radial-gradient(ellipse at 50% 0%,#0d2a10,#060e07)',
+    <div style={{
+      minHeight:'100vh',
+      background:'radial-gradient(ellipse at 40% 0%,#0d1f3c,#050810)',
       display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
-      padding:24,fontFamily:"'Georgia',serif",color:'#f0e6c8'}}>
-      <div style={{fontSize:22,fontWeight:'bold',color:'#f0c040',marginBottom:4}}>🃏 САНЖУТ</div>
-      <div style={{fontSize:11,color:'rgba(255,255,255,.3)',marginBottom:32}}>Ожидаем игроков...</div>
-      <div style={{background:'rgba(240,192,64,.07)',border:'2px solid rgba(240,192,64,.22)',
-        borderRadius:16,padding:'18px 36px',marginBottom:30,textAlign:'center'}}>
-        <div style={{fontSize:9,color:'rgba(240,192,64,.4)',letterSpacing:3,marginBottom:8}}>КОД КОМНАТЫ</div>
-        <div style={{fontSize:42,fontWeight:'bold',color:'#f0c040',letterSpacing:10,
-          textShadow:'0 0 30px rgba(240,192,64,.4)'}}>{roomCode}</div>
-        <div style={{fontSize:10,color:'rgba(255,255,255,.22)',marginTop:8}}>Отправь этот код друзьям</div>
+      padding:24,color:'#f8fafc',fontFamily:"'Inter',sans-serif",
+    }}>
+      <div style={{
+        fontSize:28,fontWeight:900,letterSpacing:6,fontFamily:"'Outfit',sans-serif",
+        background:'linear-gradient(135deg,#fcd34d,#f59e0b)',
+        WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent',
+        marginBottom:8,
+      }}>🃏 САНЖУТ</div>
+      <div style={{fontSize:11,color:'rgba(255,255,255,.25)',letterSpacing:3,marginBottom:36,fontFamily:"'Outfit',sans-serif"}}>
+        ОЖИДАНИЕ ИГРОКОВ
       </div>
-      <div style={{width:'100%',maxWidth:280}}>
-        {[0,1,2,3].map(i=>(
-          <div key={i} style={{display:'flex',alignItems:'center',gap:10,
-            padding:'10px 14px',margin:'4px 0',borderRadius:10,
-            background:players[i]?`rgba(${P_COLORS[i].slice(1).match(/../g).map(x=>parseInt(x,16)).join(',')},0.07)`:'rgba(255,255,255,.02)',
-            border:`1px solid ${players[i]?P_COLORS[i]+'2a':'rgba(255,255,255,.05)'}`}}>
-            <div style={{width:7,height:7,borderRadius:'50%',flexShrink:0,
-              background:players[i]?P_COLORS[i]:'rgba(255,255,255,.1)',
-              boxShadow:players[i]?`0 0 7px ${P_COLORS[i]}`:'none'}}/>
-            <span style={{color:players[i]?'#f0e6c8':'rgba(255,255,255,.18)',fontSize:14}}>
-              {players[i]?.name||`Ожидаем игрока ${i+1}...`}
-            </span>
-          </div>
-        ))}
+
+      {/* Room code */}
+      <div style={{
+        background:'rgba(245,158,11,.06)',
+        border:'1px solid rgba(245,158,11,.2)',
+        borderRadius:16,padding:'20px 40px',marginBottom:32,textAlign:'center',
+      }}>
+        <div style={{fontSize:9,color:'rgba(245,158,11,.4)',letterSpacing:4,marginBottom:10,fontFamily:"'Outfit',sans-serif"}}>КОД КОМНАТЫ</div>
+        <div style={{
+          fontSize:44,fontWeight:900,color:'#f59e0b',letterSpacing:12,
+          textShadow:'0 0 40px rgba(245,158,11,.4)',fontFamily:"'Outfit',sans-serif",
+        }}>{roomCode}</div>
+        <div style={{fontSize:10,color:'rgba(255,255,255,.2)',marginTop:10}}>Отправь друзьям</div>
       </div>
-      <div style={{marginTop:22,fontSize:10,color:'rgba(255,255,255,.18)'}}>Игра начнётся автоматически</div>
+
+      {/* Player slots */}
+      <div style={{width:'100%',maxWidth:300,display:'flex',flexDirection:'column',gap:8}}>
+        {[0,1,2,3].map(i=>{
+          const p=players[i];
+          const c=P_COLORS[i];
+          return(
+            <div key={i} style={{
+              display:'flex',alignItems:'center',gap:12,
+              padding:'11px 16px',borderRadius:12,
+              background:p?`rgba(${hexToRgb(c)},.05)`:'rgba(255,255,255,.02)',
+              border:`1px solid ${p?c+'30':'rgba(255,255,255,.05)'}`,
+              transition:'all .3s',
+            }}>
+              <div style={{
+                width:8,height:8,borderRadius:'50%',flexShrink:0,
+                background:p?c:'rgba(255,255,255,.08)',
+                boxShadow:p?`0 0 8px ${c}`:'none',
+              }}/>
+              <span style={{color:p?'#f8fafc':'rgba(255,255,255,.18)',fontSize:14,fontWeight:p?600:400}}>
+                {p?.name||`Игрок ${i+1}...`}
+              </span>
+              {p&&<span style={{marginLeft:'auto',fontSize:12,color:'#f59e0b',fontFamily:"'Georgia',serif",fontWeight:700}}>{p.level}</span>}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{marginTop:24,fontSize:10,color:'rgba(255,255,255,.15)',letterSpacing:2}}>ИГРА НАЧНЁТСЯ АВТОМАТИЧЕСКИ</div>
     </div>
   );
+}
+
+function hexToRgb(hex){
+  const r=parseInt(hex.slice(1,3),16);
+  const g=parseInt(hex.slice(3,5),16);
+  const b=parseInt(hex.slice(5,7),16);
+  return `${r},${g},${b}`;
 }
 
 /* ── GAME ── */
@@ -277,7 +466,7 @@ export function Game({gs,socket,roomCode}){
   const isMyTurn=mySeatIndex===currentPlayer&&phase==='playing';
   const me=players[mySeatIndex];
   const myLV=me?.level||'4';
-  const myColor=P_COLORS[mySeatIndex]||'#5b9cf6';
+  const myColor=P_COLORS[mySeatIndex]||'#60a5fa';
 
   useEffect(()=>{setCardOrder(sortCards(myCards).map(c=>c.id));},[myCards.length]);
   useEffect(()=>{if(!isMyTurn){setSelected([]);setChamVal(null);}},[isMyTurn]);
@@ -317,7 +506,6 @@ export function Game({gs,socket,roomCode}){
   }
   function onDragEnd(){dragIdx.current=null;setDragOverIdx(null);}
 
-  // Relative seat mapping: I am always "bottom"
   const getSeat=(rel)=>{
     const abs=(mySeatIndex+rel)%4;
     const p=players[abs];
@@ -329,81 +517,107 @@ export function Game({gs,socket,roomCode}){
   return(
     <div style={{
       height:'100dvh',overflow:'hidden',
-      background:'radial-gradient(ellipse at 50% 20%,#0d2010 0%,#060e07 80%)',
-      color:'#f0e6c8',fontFamily:"'Georgia',serif",
+      background:'linear-gradient(160deg,#080d1a 0%,#050810 50%,#060c14 100%)',
+      color:'#f8fafc',fontFamily:"'Inter',sans-serif",
       display:'flex',flexDirection:'column',
-      maxWidth:500,margin:'0 auto',position:'relative',
+      maxWidth:480,margin:'0 auto',position:'relative',
     }}>
       <style>{`
-        @keyframes pulse{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}
-        @keyframes shake{0%,100%{transform:none}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+        @keyframes pulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+        @keyframes shake{0%,100%{transform:none}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-        @keyframes popIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+        @keyframes popIn{from{opacity:0;transform:scale(.88) translateY(6px)}to{opacity:1;transform:scale(1) translateY(0)}}
+        @keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
       `}</style>
 
       {/* TOP PLAYER */}
-      <div style={{display:'flex',justifyContent:'center',padding:'10px 12px 0',zIndex:2}}>
+      <div style={{
+        display:'flex',justifyContent:'center',
+        padding:'10px 12px 0',zIndex:2,
+      }}>
         <Seat {...top} position="top"/>
       </div>
 
-      {/* MIDDLE ROW: left + table + right */}
-      <div style={{flex:1,display:'flex',alignItems:'center',padding:'6px',gap:4,minHeight:0}}>
+      {/* MIDDLE ROW */}
+      <div style={{flex:1,display:'flex',alignItems:'center',padding:'4px 8px',gap:4,minHeight:0}}>
 
         {/* LEFT */}
         <div style={{display:'flex',alignItems:'center',flexShrink:0}}>
           <Seat {...left} position="left"/>
         </div>
 
-        {/* OVAL TABLE */}
+        {/* TABLE */}
         <div style={{flex:1,position:'relative',alignSelf:'stretch',display:'flex',alignItems:'center',justifyContent:'center'}}>
+
           {/* Felt surface */}
           <div style={{
             position:'absolute',inset:0,
-            background:'radial-gradient(ellipse at 50% 42%,#226b32 0%,#174d23 45%,#0f3318 100%)',
-            borderRadius:'45%',
-            border:'4px solid #0a2010',
+            background:'radial-gradient(ellipse at 50% 45%,#1a5c30 0%,#134522 40%,#0b2e17 70%,#071b0e 100%)',
+            borderRadius:'44%',
+            border:'3px solid #061208',
             boxShadow:`
-              inset 0 6px 30px rgba(0,0,0,.5),
-              inset 0 0 0 2px rgba(255,255,255,.04),
-              0 8px 40px rgba(0,0,0,.6)
+              inset 0 8px 40px rgba(0,0,0,.6),
+              inset 0 0 0 1px rgba(255,255,255,.03),
+              0 10px 50px rgba(0,0,0,.7),
+              0 0 0 1px rgba(255,255,255,.03)
             `,
-          }}/>
-          {/* Inner decorative ring */}
-          <div style={{
-            position:'absolute',inset:12,
-            borderRadius:'45%',
-            border:'1px solid rgba(255,255,255,.05)',
-            pointerEvents:'none',
-          }}/>
+          }}>
+            {/* Inner ring */}
+            <div style={{
+              position:'absolute',inset:10,borderRadius:'44%',
+              border:'1px solid rgba(255,255,255,.04)',
+              pointerEvents:'none',
+            }}/>
+            {/* Subtle pattern */}
+            <div style={{
+              position:'absolute',inset:0,borderRadius:'44%',
+              backgroundImage:'radial-gradient(circle,rgba(255,255,255,.012) 1px,transparent 1px)',
+              backgroundSize:'18px 18px',
+            }}/>
+          </div>
 
           {/* Table content */}
-          <div style={{position:'relative',zIndex:2,display:'flex',flexDirection:'column',
-            alignItems:'center',justifyContent:'center',gap:8,padding:16,width:'100%'}}>
-
+          <div style={{
+            position:'relative',zIndex:2,
+            display:'flex',flexDirection:'column',
+            alignItems:'center',justifyContent:'center',
+            gap:8,padding:16,width:'100%',
+          }}>
             {table?(
-              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,animation:'popIn .25s ease'}}>
-                <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',gap:3,maxWidth:180}}>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:7,animation:'popIn .22s ease'}}>
+                <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',gap:3,maxWidth:200}}>
                   {table.cards.map(c=>(
                     <CardFace key={c.id} card={c} levelVal={myLV} sm/>
                   ))}
                 </div>
-                <div style={{padding:'3px 12px',
-                  background:'rgba(0,0,0,.5)',borderRadius:20,
-                  border:'1px solid rgba(240,192,64,.18)',
-                  fontSize:10,color:'rgba(240,192,64,.8)'}}>
+                <div style={{
+                  padding:'4px 12px',
+                  background:'rgba(0,0,0,.55)',
+                  backdropFilter:'blur(6px)',
+                  borderRadius:20,
+                  border:'1px solid rgba(245,158,11,.15)',
+                  fontSize:10,color:'rgba(245,158,11,.9)',
+                  fontWeight:600,letterSpacing:.3,
+                }}>
                   {CLABELS[table.combo?.type]} · {players[table.playedBy]?.name}
                 </div>
               </div>
             ):(
-              <div style={{color:'rgba(255,255,255,.18)',fontSize:11,fontStyle:'italic',textAlign:'center',lineHeight:1.5}}>
-                {isMyTurn?'Твой ход\nходи что хочешь':''}
+              <div style={{
+                color:'rgba(255,255,255,.2)',fontSize:11,
+                textAlign:'center',letterSpacing:.5,
+              }}>
+                {isMyTurn?<>Твой ход<br/>Ходи первым</> : ''}
               </div>
             )}
           </div>
 
-          {/* Room code watermark */}
-          <div style={{position:'absolute',bottom:6,right:14,fontSize:8,
-            color:'rgba(255,255,255,.1)',letterSpacing:2,fontFamily:'monospace'}}>{roomCode}</div>
+          {/* Room code */}
+          <div style={{
+            position:'absolute',bottom:8,fontSize:8,
+            color:'rgba(255,255,255,.08)',letterSpacing:3,
+            fontFamily:'monospace',
+          }}>{roomCode}</div>
         </div>
 
         {/* RIGHT */}
@@ -414,70 +628,103 @@ export function Game({gs,socket,roomCode}){
 
       {/* MY AREA */}
       <div style={{
-        padding:'8px 10px 12px',
-        background:'linear-gradient(0deg,rgba(0,0,0,.6) 0%,rgba(0,0,0,0) 100%)',
-        borderTop:'1px solid rgba(255,255,255,.04)',
+        padding:'8px 12px 14px',
+        background:'linear-gradient(0deg,rgba(5,8,16,.95) 0%,rgba(5,8,16,.6) 100%)',
+        borderTop:'1px solid rgba(255,255,255,.06)',
       }}>
-        {/* My info */}
+
+        {/* My info row */}
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
           <div style={{display:'flex',alignItems:'center',gap:7}}>
-            {isMyTurn&&<div style={{width:6,height:6,borderRadius:'50%',
-              background:myColor,boxShadow:`0 0 8px ${myColor}`,animation:'pulse 1s infinite'}}/>}
-            <span style={{fontSize:12,fontWeight:'bold',
-              color:isMyTurn?myColor:'rgba(255,255,255,.4)'}}>
+            {isMyTurn&&(
+              <div style={{
+                width:6,height:6,borderRadius:'50%',
+                background:myColor,
+                boxShadow:`0 0 10px ${myColor}`,
+                animation:'pulse 1.2s infinite',
+              }}/>
+            )}
+            <span style={{
+              fontSize:12,fontWeight:700,
+              color:isMyTurn?myColor:'rgba(255,255,255,.35)',
+              letterSpacing:.3,
+            }}>
               {me?.name||'Я'}
             </span>
-            <span style={{fontSize:15,color:'#f0c040',fontWeight:'bold',
-              fontFamily:"'Georgia',serif",textShadow:'0 0 10px rgba(240,192,64,.4)'}}>
-              {myLV}
-            </span>
-            <span style={{fontSize:10,color:'rgba(255,255,255,.2)'}}>{myCards.length}к</span>
+            <span style={{
+              fontSize:16,color:'#f59e0b',fontWeight:900,
+              fontFamily:"'Georgia',serif",
+              textShadow:isMyTurn?'0 0 12px rgba(245,158,11,.5)':'none',
+            }}>{myLV}</span>
+            <span style={{
+              fontSize:10,color:'rgba(255,255,255,.18)',
+              background:'rgba(255,255,255,.05)',
+              padding:'1px 6px',borderRadius:6,
+            }}>{myCards.length} карт</span>
           </div>
-          <div style={{display:'flex',gap:6,alignItems:'center'}}>
-            <button onClick={()=>{setArrangeMode(m=>!m);setSelected([]);setChamVal(null);}} style={{
-              padding:'3px 9px',fontSize:10,
-              background:arrangeMode?`${myColor}28`:'rgba(255,255,255,.05)',
-              color:arrangeMode?myColor:'rgba(255,255,255,.3)',
-              border:`1px solid ${arrangeMode?myColor:'rgba(255,255,255,.09)'}`,
-              borderRadius:5,cursor:'pointer',fontFamily:"'Georgia',serif"}}>
-              {arrangeMode?'✓ Готово':'⠿ Порядок'}
-            </button>
-          </div>
+          <button onClick={()=>{setArrangeMode(m=>!m);setSelected([]);setChamVal(null);}} style={{
+            padding:'4px 10px',fontSize:10,fontWeight:600,
+            background:arrangeMode?`${myColor}20`:'rgba(255,255,255,.04)',
+            color:arrangeMode?myColor:'rgba(255,255,255,.3)',
+            border:`1px solid ${arrangeMode?myColor:'rgba(255,255,255,.08)'}`,
+            borderRadius:6,cursor:'pointer',
+            fontFamily:"'Inter',sans-serif",letterSpacing:.3,
+            transition:'all .2s',
+          }}>
+            {arrangeMode?'✓ Готово':'⠿ Порядок'}
+          </button>
         </div>
 
-        {/* Chameleon */}
+        {/* Chameleon value picker */}
         {!arrangeMode&&hasChamSel&&(
-          <div style={{marginBottom:6,display:'flex',alignItems:'center',flexWrap:'wrap',gap:3,
-            padding:'5px 8px',background:'rgba(107,33,168,.1)',borderRadius:7,
-            border:'1px solid rgba(155,89,182,.18)'}}>
-            <span style={{fontSize:10,color:'#c39bd3'}}>✦=</span>
+          <div style={{
+            marginBottom:6,display:'flex',alignItems:'center',
+            flexWrap:'wrap',gap:3,padding:'6px 10px',
+            background:'rgba(168,85,247,.08)',
+            borderRadius:8,border:'1px solid rgba(168,85,247,.18)',
+          }}>
+            <span style={{fontSize:10,color:'#c084fc',marginRight:2}}>✦ =</span>
             {CHAM_OK.map(v=>(
               <button key={v} onClick={()=>setChamVal(v)} style={{
-                padding:'2px 6px',background:chamVal===v?'rgba(155,89,182,.5)':'rgba(155,89,182,.09)',
-                color:chamVal===v?'#fff':'#c39bd3',
-                border:`1px solid ${chamVal===v?'#9b59b6':'rgba(155,89,182,.2)'}`,
-                borderRadius:4,cursor:'pointer',fontSize:10,fontFamily:"'Georgia',serif"}}>
-                {v}
-              </button>
+                padding:'2px 7px',
+                background:chamVal===v?'rgba(168,85,247,.45)':'rgba(168,85,247,.08)',
+                color:chamVal===v?'#fff':'#c084fc',
+                border:`1px solid ${chamVal===v?'#a855f7':'rgba(168,85,247,.18)'}`,
+                borderRadius:4,cursor:'pointer',fontSize:10,
+                fontFamily:"'Georgia',serif",fontWeight:700,
+                transition:'all .15s',
+              }}>{v}</button>
             ))}
           </div>
         )}
 
         {/* Combo status */}
         {!arrangeMode&&selected.length>0&&(
-          <div style={{fontSize:10,marginBottom:5,display:'flex',alignItems:'center',gap:5}}>
-            <div style={{width:5,height:5,borderRadius:'50%',flexShrink:0,
-              background:canPlayIt?'#52c97a':'#e05c5c',
-              boxShadow:`0 0 6px ${canPlayIt?'#52c97a':'#e05c5c'}`}}/>
-            <span style={{color:canPlayIt?'#86efac':'#fca5a5'}}>
-              {curCombo?`${CLABELS[curCombo.type]}${canPlayIt?' ✓':' — не бьёт стол'}`:' Недопустимая комбинация'}
+          <div style={{
+            fontSize:10,marginBottom:5,
+            display:'flex',alignItems:'center',gap:6,
+            animation:'slideUp .15s ease',
+          }}>
+            <div style={{
+              width:5,height:5,borderRadius:'50%',flexShrink:0,
+              background:canPlayIt?'#4ade80':'#f87171',
+              boxShadow:`0 0 6px ${canPlayIt?'#4ade80':'#f87171'}`,
+            }}/>
+            <span style={{color:canPlayIt?'#86efac':'#fca5a5',fontWeight:600}}>
+              {curCombo
+                ?`${CLABELS[curCombo.type]}${canPlayIt?' ✓':' — не бьёт'}`
+                :'Недопустимая комбинация'}
             </span>
           </div>
         )}
 
-        {/* Cards */}
-        <div style={{display:'flex',flexWrap:'wrap',gap:3,
-          minHeight:62,padding:'2px 0 14px',alignItems:'flex-end'}}>
+        {/* Hand */}
+        <div style={{
+          display:'flex',flexWrap:'wrap',gap:4,
+          minHeight:68,padding:'2px 0 12px',
+          alignItems:'flex-end',
+          animation:badAnim?'shake .35s ease':'none',
+        }}>
           {displayCards.map((card,idx)=>(
             <CardFace key={card.id} card={card}
               sel={!arrangeMode&&isSel(card)}
@@ -496,39 +743,52 @@ export function Game({gs,socket,roomCode}){
 
         {/* Action buttons */}
         {!arrangeMode&&isMyTurn&&(
-          <div style={{display:'flex',gap:7,animation:badAnim?'shake .35s ease':'none'}}>
+          <div style={{display:'flex',gap:8}}>
             <button onClick={playCards} style={{
-              flex:2,padding:'10px',
-              background:canPlayIt?'linear-gradient(135deg,#c8920e,#f0c040)':'rgba(255,255,255,.04)',
+              flex:2,padding:'11px',
+              background:canPlayIt
+                ?'linear-gradient(135deg,#d97706,#f59e0b)'
+                :'rgba(255,255,255,.04)',
               color:canPlayIt?'#111':'rgba(255,255,255,.12)',
-              border:`1px solid ${canPlayIt?'#f0c040':'rgba(255,255,255,.07)'}`,
+              border:`1px solid ${canPlayIt?'#f59e0b':'rgba(255,255,255,.06)'}`,
               borderRadius:10,cursor:canPlayIt?'pointer':'default',
-              fontWeight:'bold',fontSize:14,fontFamily:"'Georgia',serif",
-              boxShadow:canPlayIt?'0 4px 18px rgba(240,192,64,.4)':'none',
-              transition:'all .2s'}}>
-              СЫГРАТЬ
-            </button>
+              fontWeight:800,fontSize:14,fontFamily:"'Outfit',sans-serif",
+              letterSpacing:.5,
+              boxShadow:canPlayIt?'0 4px 20px rgba(245,158,11,.4)':'none',
+              transition:'all .2s',
+            }}>СЫГРАТЬ</button>
             {canPassIt&&(
               <button onClick={pass} style={{
-                flex:1,padding:'10px',background:'rgba(255,255,255,.04)',
-                color:'rgba(255,255,255,.35)',border:'1px solid rgba(255,255,255,.09)',
-                borderRadius:10,cursor:'pointer',fontSize:13,fontFamily:"'Georgia',serif"}}>
-                ПАС
-              </button>
+                flex:1,padding:'11px',
+                background:'rgba(255,255,255,.04)',
+                color:'rgba(255,255,255,.4)',
+                border:'1px solid rgba(255,255,255,.08)',
+                borderRadius:10,cursor:'pointer',
+                fontSize:13,fontFamily:"'Outfit',sans-serif",
+                fontWeight:600,transition:'all .2s',
+              }}>ПАС</button>
             )}
             {selected.length>0&&(
               <button onClick={()=>{setSelected([]);setChamVal(null);}} style={{
-                padding:'10px 12px',background:'transparent',
-                color:'rgba(255,255,255,.2)',border:'1px solid rgba(255,255,255,.06)',
-                borderRadius:10,cursor:'pointer',fontSize:12}}>✕</button>
+                padding:'11px 14px',background:'rgba(255,255,255,.03)',
+                color:'rgba(255,255,255,.2)',
+                border:'1px solid rgba(255,255,255,.06)',
+                borderRadius:10,cursor:'pointer',fontSize:14,
+                transition:'all .2s',
+              }}>✕</button>
             )}
           </div>
         )}
 
-        {/* Last log message */}
+        {/* Last log */}
         {log?.length>0&&(
-          <div style={{marginTop:7,fontSize:10,color:'rgba(220,180,80,.45)',
-            textAlign:'center',height:13,overflow:'hidden'}}>
+          <div style={{
+            marginTop:8,fontSize:10,
+            color:'rgba(245,158,11,.4)',
+            textAlign:'center',
+            overflow:'hidden',
+            whiteSpace:'nowrap',textOverflow:'ellipsis',
+          }}>
             {log[log.length-1]}
           </div>
         )}
@@ -536,37 +796,62 @@ export function Game({gs,socket,roomCode}){
 
       {/* Finished overlay */}
       {phase==='finished'&&(
-        <div style={{position:'absolute',inset:0,zIndex:20,
-          background:'rgba(0,0,0,.88)',backdropFilter:'blur(4px)',
-          display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
-          animation:'fadeIn .4s ease',padding:24}}>
-          <div style={{fontSize:40,marginBottom:6}}>🏆</div>
-          <div style={{fontSize:20,color:'#f0c040',fontWeight:'bold',
-            letterSpacing:3,marginBottom:20}}>ПАРТИЯ ОКОНЧЕНА</div>
-          {[...players].sort((a,b)=>b.levelIdx-a.levelIdx).map((p,rank)=>(
+        <div style={{
+          position:'absolute',inset:0,zIndex:20,
+          background:'rgba(5,8,16,.92)',
+          backdropFilter:'blur(8px)',
+          display:'flex',flexDirection:'column',
+          alignItems:'center',justifyContent:'center',
+          animation:'fadeIn .4s ease',padding:24,
+        }}>
+          <div style={{fontSize:48,marginBottom:8}}>🏆</div>
+          <div style={{
+            fontSize:22,fontWeight:900,letterSpacing:4,marginBottom:6,
+            fontFamily:"'Outfit',sans-serif",
+            background:'linear-gradient(135deg,#fcd34d,#f59e0b)',
+            WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent',
+          }}>ПАРТИЯ ОКОНЧЕНА</div>
+          <div style={{
+            fontSize:10,color:'rgba(255,255,255,.2)',letterSpacing:3,
+            fontFamily:"'Outfit',sans-serif",marginBottom:28,
+          }}>РЕЗУЛЬТАТЫ</div>
+
+          {[...players].sort((a,b)=>(b.levelIdx??0)-(a.levelIdx??0)).map((p,rank)=>(
             <div key={p.id} style={{
               display:'flex',justifyContent:'space-between',alignItems:'center',
-              padding:'9px 20px',margin:'4px 0',borderRadius:10,width:'100%',maxWidth:280,
-              background:rank===0?'rgba(240,192,64,.1)':'rgba(255,255,255,.03)',
-              border:`1px solid ${rank===0?'rgba(240,192,64,.3)':'rgba(255,255,255,.05)'}`}}>
-              <span style={{color:P_COLORS[p.seatIndex],fontWeight:'bold',fontSize:14}}>
-                {p.name}{p.isMe?' (я)':''}
-              </span>
-              <span style={{color:'#f0c040',fontSize:20,fontWeight:'bold'}}>{p.level}</span>
+              padding:'10px 20px',margin:'4px 0',borderRadius:12,
+              width:'100%',maxWidth:290,
+              background:rank===0?'rgba(245,158,11,.08)':'rgba(255,255,255,.03)',
+              border:`1px solid ${rank===0?'rgba(245,158,11,.25)':'rgba(255,255,255,.05)'}`,
+            }}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <span style={{fontSize:12,color:'rgba(255,255,255,.2)',fontWeight:600,width:16}}>
+                  {rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`${rank+1}`}
+                </span>
+                <span style={{
+                  color:P_COLORS[p.seatIndex],fontWeight:700,fontSize:14,
+                }}>{p.name}{p.isMe?' (я)':''}</span>
+              </div>
+              <span style={{
+                color:'#f59e0b',fontSize:22,fontWeight:900,
+                fontFamily:"'Georgia',serif",
+              }}>{p.level}</span>
             </div>
           ))}
+
           {mySeatIndex===0?(
             <button onClick={()=>socket.emit('newGame',{code:roomCode})} style={{
-              marginTop:22,padding:'12px 34px',
-              background:'linear-gradient(135deg,#c8920e,#f0c040)',
-              color:'#111',border:'none',borderRadius:10,cursor:'pointer',
-              fontWeight:'bold',fontSize:15,fontFamily:"'Georgia',serif",
-              boxShadow:'0 4px 22px rgba(240,192,64,.4)'}}>
-              НОВАЯ ИГРА →
-            </button>
+              marginTop:24,padding:'13px 36px',
+              background:'linear-gradient(135deg,#d97706,#f59e0b)',
+              color:'#111',border:'none',borderRadius:12,cursor:'pointer',
+              fontWeight:800,fontSize:15,
+              fontFamily:"'Outfit',sans-serif",letterSpacing:.5,
+              boxShadow:'0 4px 24px rgba(245,158,11,.4)',
+              transition:'all .2s',
+            }}>НОВАЯ ИГРА →</button>
           ):(
-            <div style={{marginTop:20,fontSize:12,color:'rgba(255,255,255,.28)'}}>
-              Ожидаем хоста для новой игры...
+            <div style={{marginTop:20,fontSize:12,color:'rgba(255,255,255,.22)',letterSpacing:.5}}>
+              Ожидаем хоста...
             </div>
           )}
         </div>
@@ -603,8 +888,13 @@ export default function App(){
   if(screen==='waiting'&&gs) return <WaitingRoom roomCode={roomCode||gs?.roomCode} players={gs.players}/>;
   if(screen==='game'&&gs) return <Game gs={gs} socket={socketRef.current} roomCode={roomCode||gs?.roomCode}/>;
   return(
-    <div style={{minHeight:'100vh',background:'#060e07',display:'flex',alignItems:'center',
-      justifyContent:'center',color:'#f0c040',fontSize:16,fontFamily:"'Georgia',serif"}}>
+    <div style={{
+      minHeight:'100vh',
+      background:'linear-gradient(160deg,#080d1a,#050810)',
+      display:'flex',alignItems:'center',justifyContent:'center',
+      color:'#f59e0b',fontSize:16,fontFamily:"'Outfit',sans-serif",
+      letterSpacing:3,
+    }}>
       Подключение...
     </div>
   );
