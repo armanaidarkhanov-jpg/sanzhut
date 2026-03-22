@@ -596,13 +596,12 @@ export default function App(){
     return()=>socket.disconnect();
   },[]);
 
-  const socket=socketRef.current;
-  function handleCreate(name){setError('');socket?.emit('createRoom',{playerName:name});}
-  function handleJoin(name,code){setError('');socket?.emit('joinRoom',{playerName:name,code});}
+  function handleCreate(name){setError('');socketRef.current?.emit('createRoom',{playerName:name});}
+  function handleJoin(name,code){setError('');socketRef.current?.emit('joinRoom',{playerName:name,code});}
 
   if(screen==='lobby') return <Lobby onCreate={handleCreate} onJoin={handleJoin} error={error}/>;
   if(screen==='waiting'&&gs) return <WaitingRoom roomCode={roomCode||gs?.roomCode} players={gs.players}/>;
-  if(screen==='game'&&gs) return <Game gs={gs} socket={socket} roomCode={roomCode||gs?.roomCode}/>;
+  if(screen==='game'&&gs) return <Game gs={gs} socket={socketRef.current} roomCode={roomCode||gs?.roomCode}/>;
   return(
     <div style={{minHeight:'100vh',background:'#060e07',display:'flex',alignItems:'center',
       justifyContent:'center',color:'#f0c040',fontSize:16,fontFamily:"'Georgia',serif"}}>
