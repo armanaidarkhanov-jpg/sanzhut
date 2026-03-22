@@ -276,11 +276,14 @@ export function Game({gs,socket,roomCode}){
   const[dragOverIdx,setDragOverIdx]=useState(null);
   const prevPhaseRef=useRef(gs.phase);
 
-  const{players,table,log,finished,phase,myCards,mySeatIndex,currentPlayer,turnDeadline}=gs;
+  const{players,table,log,finished,phase,myCards,mySeatIndex,currentPlayer,turnDeadline,champion}=gs;
   const isMyTurn=mySeatIndex===currentPlayer&&phase==='playing';
   const me=players[mySeatIndex];
   const myLV=me?.level||'4';
   const myColor=P_COLORS[mySeatIndex]||'#60a5fa';
+  const isChampion=champion!==null&&champion!==undefined;
+  const championPlayer=isChampion?players.find(p=>p.seatIndex===champion):null;
+  const iAmChampion=isChampion&&champion===mySeatIndex;
 
   // Reaction listener
   useEffect(()=>{
@@ -304,9 +307,9 @@ export function Game({gs,socket,roomCode}){
     return()=>clearInterval(id);
   },[turnDeadline]);
 
-  // Haptic on win
+  // Haptic on win/champion
   useEffect(()=>{
-    if(phase==='finished'&&prevPhaseRef.current==='playing') haptic('success');
+    if(phase==='finished'&&prevPhaseRef.current==='playing') haptic(iAmChampion?'success':'success');
     prevPhaseRef.current=phase;
   },[phase]);
 
@@ -323,11 +326,13 @@ export function Game({gs,socket,roomCode}){
   const curCombo=selected.length>0?detectCombo(selected,chamVal):null;
   const canPlayIt=!!(curCombo&&(!table||canBeat(curCombo,table.combo)));
   const canPassIt=!!(table&&table.playedBy!==mySeatIndex&&isMyTurn);
+  const iOwnTable=!!(isMyTurn&&table&&table.playedBy===mySeatIndex);
 
   function bad(){setBadAnim(true);haptic('error');setTimeout(()=>setBadAnim(false),400);}
   function toggleCard(card){if(arrangeMode||!isMyTurn) return;haptic('light');const al=selected.some(c=>c.id===card.id);const ns=al?selected.filter(c=>c.id!==card.id):[...selected,card];setSelected(ns);if(!ns.some(c=>c.type==='chameleon')) setChamVal(null);}
   function playCards(){if(!canPlayIt){bad();return;}haptic('impact');socket.emit('playCards',{code:roomCode,cardIds:selected.map(c=>c.id),chamVal});setSelected([]);setChamVal(null);setArrangeMode(false);}
   function pass(){haptic('light');socket.emit('pass',{code:roomCode});setSelected([]);setChamVal(null);}
+  function closetable(){haptic('light');socket.emit('clearTable',{code:roomCode});}
   function sendReaction(emoji){haptic('light');socket.emit('sendReaction',{code:roomCode,toSeatIdx:reactionTarget,emoji});setReactionTarget(null);}
   function onDragStart(idx){dragIdx.current=idx;}
   function onDragOver(e,idx){e.preventDefault();setDragOverIdx(idx);}
@@ -353,6 +358,8 @@ export function Game({gs,socket,roomCode}){
         @keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes cardDeal{from{opacity:0;transform:translateY(-12px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
         @keyframes floatUp{0%{opacity:1;transform:translate(-50%,-50%) scale(.6)}20%{opacity:1;transform:translate(-50%,-70%) scale(1.3)}100%{opacity:0;transform:translate(-50%,-160%) scale(1)}}
+        @keyframes champGlow{0%,100%{text-shadow:0 0 40px #f59e0b,0 0 80px #f59e0b}50%{text-shadow:0 0 60px #fcd34d,0 0 120px #fcd34d,0 0 200px rgba(245,158,11,.4)}}
+        @keyframes starPop{0%{opacity:0;transform:scale(0) rotate(-20deg)}60%{opacity:1;transform:scale(1.3) rotate(5deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
       `}</style>
 
       {/* Timer bar */}
@@ -411,6 +418,9 @@ export function Game({gs,socket,roomCode}){
                 <div style={{padding:'4px 12px',background:'rgba(0,0,0,.55)',backdropFilter:'blur(6px)',borderRadius:20,border:'1px solid rgba(245,158,11,.15)',fontSize:10,color:'rgba(245,158,11,.9)',fontWeight:600,letterSpacing:.3}}>
                   {CLABELS[table.combo?.type]} · {players[table.playedBy]?.name}
                 </div>
+                {iOwnTable&&(
+                  <button onClick={closetable} style={{padding:'4px 14px',background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.12)',borderRadius:8,cursor:'pointer',color:'rgba(255,255,255,.45)',fontSize:10,fontFamily:"'Outfit',sans-serif",letterSpacing:.5,transition:'all .2s'}}>🧹 Закрыть стол</button>
+                )}
               </div>
             ):(
               <div style={{color:'rgba(255,255,255,.2)',fontSize:11,textAlign:'center',letterSpacing:.5}}>
@@ -496,26 +506,60 @@ export function Game({gs,socket,roomCode}){
 
       {/* Finished overlay */}
       {phase==='finished'&&(
-        <div style={{position:'absolute',inset:0,zIndex:20,background:'rgba(5,8,16,.92)',backdropFilter:'blur(8px)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',animation:'fadeIn .4s ease',padding:24}}>
-          <div style={{fontSize:48,marginBottom:8}}>🏆</div>
-          <div style={{fontSize:22,fontWeight:900,letterSpacing:4,marginBottom:6,fontFamily:"'Outfit',sans-serif",background:'linear-gradient(135deg,#fcd34d,#f59e0b)',WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent'}}>ПАРТИЯ ОКОНЧЕНА</div>
-          <div style={{fontSize:10,color:'rgba(255,255,255,.2)',letterSpacing:3,fontFamily:"'Outfit',sans-serif",marginBottom:28}}>РЕЗУЛЬТАТЫ</div>
-          {[...players].sort((a,b)=>(b.levelIdx??0)-(a.levelIdx??0)).map((p,rank)=>(
-            <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 20px',margin:'4px 0',borderRadius:12,width:'100%',maxWidth:290,background:rank===0?'rgba(245,158,11,.08)':'rgba(255,255,255,.03)',border:`1px solid ${rank===0?'rgba(245,158,11,.25)':'rgba(255,255,255,.05)'}`}}>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <span style={{fontSize:12,color:'rgba(255,255,255,.2)',fontWeight:600,width:16}}>{rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`${rank+1}`}</span>
-                <span style={{color:P_COLORS[p.seatIndex],fontWeight:700,fontSize:14}}>{p.name}{p.isMe?' (я)':''}</span>
+        <div style={{position:'absolute',inset:0,zIndex:20,background:'rgba(5,8,16,.94)',backdropFilter:'blur(10px)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',animation:'fadeIn .4s ease',padding:24}}>
+          {isChampion?(
+            /* ── CHAMPION SCREEN ── */
+            <>
+              <div style={{fontSize:72,marginBottom:4,animation:'starPop .5s ease both'}}>&#x1F451;</div>
+              <div style={{fontSize:11,letterSpacing:6,color:'rgba(245,158,11,.5)',fontFamily:"'Outfit',sans-serif",fontWeight:600,marginBottom:8,animation:'fadeIn .4s .2s both'}}>ЧЕМПИОН СЕССИИ</div>
+              <div style={{fontSize:32,fontWeight:900,letterSpacing:2,fontFamily:"'Outfit',sans-serif",background:'linear-gradient(135deg,#fcd34d,#f59e0b,#fcd34d)',WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent',animation:'champGlow 2s ease infinite',marginBottom:4,textAlign:'center'}}>
+                {championPlayer?.name}
               </div>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
-                {p.wins>0&&<span style={{fontSize:11,color:'rgba(255,200,50,.5)'}}>🏆×{p.wins}</span>}
-                <span style={{color:'#f59e0b',fontSize:22,fontWeight:900,fontFamily:"'Georgia',serif"}}>{p.level}</span>
+              <div style={{fontSize:36,color:'#f59e0b',fontFamily:"'Georgia',serif",fontWeight:900,marginBottom:28,textShadow:'0 0 20px rgba(245,158,11,.8)',animation:'fadeIn .3s .3s both'}}>3</div>
+              <div style={{width:'100%',maxWidth:290,display:'flex',flexDirection:'column',gap:6,marginBottom:24}}>
+                {[...players].sort((a,b)=>(b.levelIdx??0)-(a.levelIdx??0)).map((p,rank)=>(
+                  <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 16px',borderRadius:10,background:p.seatIndex===champion?'rgba(245,158,11,.1)':'rgba(255,255,255,.03)',border:`1px solid ${p.seatIndex===champion?'rgba(245,158,11,.35)':'rgba(255,255,255,.05)'}`}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{fontSize:12,color:'rgba(255,255,255,.2)',width:16}}>{rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`${rank+1}`}</span>
+                      <span style={{color:P_COLORS[p.seatIndex],fontWeight:700,fontSize:13}}>{p.name}{p.isMe?' (я)':''}</span>
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      {p.wins>0&&<span style={{fontSize:10,color:'rgba(255,200,50,.5)'}}>🏆×{p.wins}</span>}
+                      <span style={{color:'#f59e0b',fontSize:20,fontWeight:900,fontFamily:"'Georgia',serif"}}>{p.level}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          ))}
-          {mySeatIndex===0?(
-            <button onClick={()=>{haptic('impact');socket.emit('newGame',{code:roomCode});}} style={{marginTop:24,padding:'13px 36px',background:'linear-gradient(135deg,#d97706,#f59e0b)',color:'#111',border:'none',borderRadius:12,cursor:'pointer',fontWeight:800,fontSize:15,fontFamily:"'Outfit',sans-serif",letterSpacing:.5,boxShadow:'0 4px 24px rgba(245,158,11,.4)',transition:'all .2s'}}>НОВАЯ ИГРА →</button>
+              {mySeatIndex===0?(
+                <button onClick={()=>{haptic('impact');socket.emit('newGame',{code:roomCode});}} style={{padding:'13px 36px',background:'linear-gradient(135deg,#d97706,#f59e0b)',color:'#111',border:'none',borderRadius:12,cursor:'pointer',fontWeight:800,fontSize:15,fontFamily:"'Outfit',sans-serif",letterSpacing:.5,boxShadow:'0 4px 24px rgba(245,158,11,.5)',transition:'all .2s'}}>НОВАЯ СЕССИЯ →</button>
+              ):(
+                <div style={{fontSize:12,color:'rgba(255,255,255,.22)',letterSpacing:.5}}>Ожидаем хоста...</div>
+              )}
+            </>
           ):(
-            <div style={{marginTop:20,fontSize:12,color:'rgba(255,255,255,.22)',letterSpacing:.5}}>Ожидаем хоста...</div>
+            /* ── NORMAL ROUND END ── */
+            <>
+              <div style={{fontSize:48,marginBottom:8}}>🏆</div>
+              <div style={{fontSize:22,fontWeight:900,letterSpacing:4,marginBottom:6,fontFamily:"'Outfit',sans-serif",background:'linear-gradient(135deg,#fcd34d,#f59e0b)',WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent'}}>ПАРТИЯ ОКОНЧЕНА</div>
+              <div style={{fontSize:10,color:'rgba(255,255,255,.2)',letterSpacing:3,fontFamily:"'Outfit',sans-serif",marginBottom:28}}>РЕЗУЛЬТАТЫ</div>
+              {[...players].sort((a,b)=>(b.levelIdx??0)-(a.levelIdx??0)).map((p,rank)=>(
+                <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 20px',margin:'4px 0',borderRadius:12,width:'100%',maxWidth:290,background:rank===0?'rgba(245,158,11,.08)':'rgba(255,255,255,.03)',border:`1px solid ${rank===0?'rgba(245,158,11,.25)':'rgba(255,255,255,.05)'}`}}>
+                  <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <span style={{fontSize:12,color:'rgba(255,255,255,.2)',fontWeight:600,width:16}}>{rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`${rank+1}`}</span>
+                    <span style={{color:P_COLORS[p.seatIndex],fontWeight:700,fontSize:14}}>{p.name}{p.isMe?' (я)':''}</span>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    {p.wins>0&&<span style={{fontSize:11,color:'rgba(255,200,50,.5)'}}>🏆×{p.wins}</span>}
+                    <span style={{color:'#f59e0b',fontSize:22,fontWeight:900,fontFamily:"'Georgia',serif"}}>{p.level}</span>
+                  </div>
+                </div>
+              ))}
+              {mySeatIndex===0?(
+                <button onClick={()=>{haptic('impact');socket.emit('newGame',{code:roomCode});}} style={{marginTop:24,padding:'13px 36px',background:'linear-gradient(135deg,#d97706,#f59e0b)',color:'#111',border:'none',borderRadius:12,cursor:'pointer',fontWeight:800,fontSize:15,fontFamily:"'Outfit',sans-serif",letterSpacing:.5,boxShadow:'0 4px 24px rgba(245,158,11,.4)',transition:'all .2s'}}>НОВАЯ ИГРА →</button>
+              ):(
+                <div style={{marginTop:20,fontSize:12,color:'rgba(255,255,255,.22)',letterSpacing:.5}}>Ожидаем хоста...</div>
+              )}
+            </>
           )}
         </div>
       )}
