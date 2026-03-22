@@ -225,8 +225,10 @@ function Lobby({onCreate,onJoin,error}){
 }
 
 /* ── Waiting ── */
-function WaitingRoom({roomCode,players}){
+function WaitingRoom({roomCode,players,onFillBots}){
   const[copied,setCopied]=useState(false);
+  const isHost=players[0]?.isMe;
+  const hasEmpty=players.length<4;
   function copyCode(){haptic('light');navigator.clipboard.writeText(roomCode).catch(()=>{});setCopied(true);setTimeout(()=>setCopied(false),2000);}
   function shareRoom(){haptic('light');const text=`🃏 Играем в Ван Зан! Код комнаты: ${roomCode}`;if(navigator.share){navigator.share({text}).catch(()=>{});}else{navigator.clipboard.writeText(text).catch(()=>{});setCopied(true);setTimeout(()=>setCopied(false),2000);}}
   return(
@@ -238,7 +240,12 @@ function WaitingRoom({roomCode,players}){
         <div style={{fontSize:44,fontWeight:900,color:'#f59e0b',letterSpacing:12,textShadow:'0 0 40px rgba(245,158,11,.4)',fontFamily:"'Outfit',sans-serif"}}>{roomCode}</div>
         <div style={{fontSize:10,color:copied?'#4ade80':'rgba(255,255,255,.2)',marginTop:10,transition:'color .3s'}}>{copied?'✓ Скопировано!':'Нажми чтобы скопировать'}</div>
       </div>
-      <button onClick={shareRoom} style={{marginBottom:24,padding:'10px 24px',background:'rgba(96,165,250,.1)',border:'1px solid rgba(96,165,250,.25)',borderRadius:10,cursor:'pointer',color:'#60a5fa',fontSize:13,fontWeight:600,fontFamily:"'Outfit',sans-serif",letterSpacing:.5}}>📬 Поделиться</button>
+      <div style={{display:'flex',gap:8,marginBottom:24}}>
+        <button onClick={shareRoom} style={{padding:'10px 20px',background:'rgba(96,165,250,.1)',border:'1px solid rgba(96,165,250,.25)',borderRadius:10,cursor:'pointer',color:'#60a5fa',fontSize:13,fontWeight:600,fontFamily:"'Outfit',sans-serif",letterSpacing:.5}}>📬 Поделиться</button>
+        {isHost&&hasEmpty&&(
+          <button onClick={()=>{haptic('impact');onFillBots();}} style={{padding:'10px 20px',background:'rgba(74,222,128,.1)',border:'1px solid rgba(74,222,128,.25)',borderRadius:10,cursor:'pointer',color:'#4ade80',fontSize:13,fontWeight:600,fontFamily:"'Outfit',sans-serif",letterSpacing:.5}}>⚡ С ботами</button>
+        )}
+      </div>
       <div style={{width:'100%',maxWidth:300,display:'flex',flexDirection:'column',gap:8}}>
         {[0,1,2,3].map(i=>{
           const p=players[i],c=P_COLORS[i];
@@ -547,9 +554,10 @@ export default function App(){
 
   function handleCreate(name){setError('');socketRef.current?.emit('createRoom',{playerName:name});}
   function handleJoin(name,code){setError('');socketRef.current?.emit('joinRoom',{playerName:name,code});}
+  function handleFillBots(){socketRef.current?.emit('fillWithBots',{code:roomCode});}
 
   if(screen==='lobby') return <Lobby onCreate={handleCreate} onJoin={handleJoin} error={error}/>;
-  if(screen==='waiting'&&gs) return <WaitingRoom roomCode={roomCode||gs?.roomCode} players={gs.players}/>;
+  if(screen==='waiting'&&gs) return <WaitingRoom roomCode={roomCode||gs?.roomCode} players={gs.players} onFillBots={handleFillBots}/>;
   if(screen==='game'&&gs) return <Game gs={gs} socket={socketRef.current} roomCode={roomCode||gs?.roomCode}/>;
   return(<div style={{minHeight:'100vh',background:'linear-gradient(160deg,#080d1a,#050810)',display:'flex',alignItems:'center',justifyContent:'center',color:'#f59e0b',fontSize:16,fontFamily:"'Outfit',sans-serif",letterSpacing:3}}>Подключение...</div>);
 }
