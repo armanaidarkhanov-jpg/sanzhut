@@ -2,21 +2,21 @@ import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 
 const SERVER_URL = "https://sanzhut-server-production.up.railway.app";
-
-const RED_SUITS  = new Set(['♥','♦']);
-const P_COLORS   = ['#f87171','#60a5fa','#4ade80','#fb923c'];
-const P_AVATARS  = ['♠','♦','♣','♥'];
-const CLABELS    = {single:'Одна карта',pair:'Пара',small_bomb:'Малая бомба',
+const RED_SUITS = new Set(['♥','♦']);
+const P_COLORS = ['#f87171','#60a5fa','#4ade80','#fb923c'];
+const P_AVATARS = ['♠','♦','♣','♥'];
+const CLABELS = {single:'Одна карта',pair:'Пара',small_bomb:'Малая бомба',
   big_bomb:'Большая бомба',hatar:'Хатар',sanzhut:'Санжут'};
-const REG_VALS   = ['4','5','6','7','8','9','10','J','Q','K','A','2','3'];
-const CHAM_OK    = REG_VALS.filter(v=>!['2','3'].includes(v));
+const REG_VALS = ['4','5','6','7','8','9','10','J','Q','K','A','2','3'];
+const CHAM_OK = REG_VALS.filter(v=>!['2','3'].includes(v));
 const VR = {};
 REG_VALS.forEach((v,i)=>VR[v]=i);
 VR['JB']=13; VR['JR']=14;
 const REACTION_EMOJIS = ['👏','😂','🔥','😤','🫡','💀','❤️','🤝'];
-
 const rvOf = (c,cv) => c.type==='chameleon'?(cv||'4'):c.value;
 const SEQ_BAD = new Set(['2','3','JB','JR']);
+
+const GAME_LINK = 'https://t.me/SanzhutGameBot/play';
 
 const haptic = (type) => {
   try {
@@ -75,7 +75,6 @@ function canBeat(played,table){
   if(pt===tt){if(['single','pair','small_bomb','big_bomb'].includes(pt)) return pr>tr;if(pt==='hatar') return pl===tl&&pr>tr;if(pt==='sanzhut') return pp===tp&&pr>tr;}
   return false;
 }
-
 const SUIT_O={'♠':0,'♥':1,'♦':2,'♣':3};
 function sortCards(h){
   return [...h].sort((a,b)=>{
@@ -84,34 +83,36 @@ function sortCards(h){
     return ra!==rb?ra-rb:(SUIT_O[a.suit]??0)-(SUIT_O[b.suit]??0);
   });
 }
-
 function hexToRgb(hex){
   const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
   return `${r},${g},${b}`;
 }
 
 /* ── Card Face ── */
-function CardFace({card,sel,onClick,sm,levelVal,dragHandlers,isDragOver}){
-  const W=sm?28:46, H=sm?40:66;
+function CardFace({card,sel,onClick,sm,levelVal,isArrangeSelected,isDragOver}){
+  const W=sm?28:56, H=sm?40:80;
   let topLabel,botLabel,centerSuit,topColor,bgGrad,borderColor;
   if(card.type==='joker_black'){topLabel='JK';botLabel='♟';centerSuit='🃏';topColor='#374151';bgGrad='linear-gradient(145deg,#f9fafb,#e5e7eb)';borderColor='#9ca3af';}
   else if(card.type==='joker_red'){topLabel='JK';botLabel='♦';centerSuit='🃏';topColor='#991b1b';bgGrad='linear-gradient(145deg,#fff5f5,#fecaca)';borderColor='#f87171';}
   else if(card.type==='chameleon'){topLabel='✦';botLabel='★';centerSuit='✦';topColor='#6b21a8';bgGrad='linear-gradient(145deg,#faf5ff,#e9d5ff)';borderColor='#a855f7';}
   else{topLabel=card.value;botLabel=card.suit;centerSuit=card.suit;const red=RED_SUITS.has(card.suit);topColor=red?'#c0392b':'#1a1a2e';bgGrad='linear-gradient(145deg,#fffef8,#faf4e0)';borderColor=red?'#f87171':'#d4d0b8';}
   const isLv=card.value===levelVal&&card.type==='regular'&&!sm;
-  const fs=sm?{val:9,suit:8,center:12}:{val:13,suit:10,center:20};
+  const fs=sm?{val:9,suit:8,center:12}:{val:15,suit:12,center:24};
+
+  const activeBorder = isArrangeSelected ? '#60a5fa' : sel ? '#f59e0b' : isDragOver ? '#60a5fa' : isLv ? '#4ade80' : borderColor;
+
   return(
-    <div onClick={onClick} {...(dragHandlers||{})} style={{
+    <div onClick={onClick} style={{
       width:W,height:H,background:bgGrad,
-      border:`2px solid ${isDragOver?'#60a5fa':sel?'#f59e0b':isLv?'#4ade80':borderColor}`,
+      border:`2px solid ${activeBorder}`,
       borderRadius:sm?5:8,display:'flex',flexDirection:'column',
       alignItems:'center',justifyContent:'space-between',
-      cursor:dragHandlers?'grab':onClick?'pointer':'default',
-      transform:sel?'translateY(-14px) scale(1.07)':isDragOver?'scale(1.07)':'none',
+      cursor:onClick?'pointer':'default',
+      transform:sel?'translateY(-14px) scale(1.07)':isArrangeSelected?'translateY(-8px) scale(1.04)':'none',
       transition:'transform .15s cubic-bezier(.34,1.56,.64,1),box-shadow .15s,border-color .15s',
-      boxShadow:sel?'0 10px 28px rgba(245,158,11,.45),0 0 0 1px rgba(245,158,11,.3)':isDragOver?'0 0 0 3px #60a5fa':isLv?'0 2px 10px rgba(74,222,128,.3)':'0 3px 8px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.8)',
+      boxShadow:sel?'0 10px 28px rgba(245,158,11,.45),0 0 0 1px rgba(245,158,11,.3)':isArrangeSelected?'0 6px 20px rgba(96,165,250,.4),0 0 0 1px rgba(96,165,250,.3)':isLv?'0 2px 10px rgba(74,222,128,.3)':'0 3px 8px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.8)',
       color:topColor,fontWeight:'bold',userSelect:'none',flexShrink:0,
-      position:'relative',padding:sm?'2px 3px':'3px 4px',
+      position:'relative',padding:sm?'2px 3px':'4px 5px',
     }}>
       {isLv&&<div style={{position:'absolute',top:2,right:2,width:5,height:5,borderRadius:'50%',background:'#4ade80',boxShadow:'0 0 6px #4ade80'}}/>}
       <div style={{alignSelf:'flex-start',lineHeight:1.1}}>
@@ -230,7 +231,16 @@ function WaitingRoom({roomCode,players,onFillBots,onExit}){
   const isHost=players[0]?.isMe;
   const hasEmpty=players.length<4;
   function copyCode(){haptic('light');navigator.clipboard.writeText(roomCode).catch(()=>{});setCopied(true);setTimeout(()=>setCopied(false),2000);}
-  function shareRoom(){haptic('light');const text=`🃏 Играем в Ван Зан! Код комнаты: ${roomCode}`;if(navigator.share){navigator.share({text}).catch(()=>{});}else{navigator.clipboard.writeText(text).catch(()=>{});setCopied(true);setTimeout(()=>setCopied(false),2000);}}
+  function shareRoom(){
+    haptic('light');
+    const text = `🃏 Играем в Ван Зан! Код комнаты: ${roomCode}\n\nПрисоединяйся: ${GAME_LINK}`;
+    if(navigator.share){
+      navigator.share({text, url: GAME_LINK}).catch(()=>{});
+    } else {
+      navigator.clipboard.writeText(text).catch(()=>{});
+      setCopied(true);setTimeout(()=>setCopied(false),2000);
+    }
+  }
   return(
     <div style={{minHeight:'100vh',background:'radial-gradient(ellipse at 40% 0%,#0d1f3c,#050810)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24,color:'#f8fafc',fontFamily:"'Inter',sans-serif",position:'relative'}}>
       <button onClick={onExit} style={{position:'absolute',top:16,left:16,padding:'6px 12px',background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',borderRadius:8,cursor:'pointer',color:'rgba(255,255,255,.25)',fontSize:12,fontFamily:"'Inter',sans-serif"}}>← Выйти</button>
@@ -267,6 +277,7 @@ export function Game({gs,socket,roomCode,onExit}){
   const[selected,setSelected]=useState([]);
   const[chamVal,setChamVal]=useState(null);
   const[arrangeMode,setArrangeMode]=useState(false);
+  const[arrangeSelected,setArrangeSelected]=useState(null); // index of first tapped card in arrange mode
   const[badAnim,setBadAnim]=useState(false);
   const[cardOrder,setCardOrder]=useState(null);
   const[timeLeft,setTimeLeft]=useState(null);
@@ -274,10 +285,7 @@ export function Game({gs,socket,roomCode,onExit}){
   const[reactionTarget,setReactionTarget]=useState(null);
   const[floatingReactions,setFloatingReactions]=useState([]);
   const[confirmExit,setConfirmExit]=useState(false);
-  const dragIdx=useRef(null);
-  const[dragOverIdx,setDragOverIdx]=useState(null);
   const prevPhaseRef=useRef(gs.phase);
-
   const{players,table,log,finished,phase,myCards,mySeatIndex,currentPlayer,turnDeadline,champion,abandoned}=gs;
   const isMyTurn=mySeatIndex===currentPlayer&&phase==='playing';
   const me=players[mySeatIndex];
@@ -321,7 +329,6 @@ export function Game({gs,socket,roomCode,onExit}){
   const cardById=Object.fromEntries(myCards.map(c=>[c.id,c]));
   const orderedIds=(cardOrder||[]).filter(id=>existingIds.has(id));
   const displayCards=orderedIds.length===myCards.length?orderedIds.map(id=>cardById[id]):sortCards(myCards);
-
   const isSel=c=>selected.some(s=>s.id===c.id);
   const hasChamSel=selected.some(c=>c.type==='chameleon');
   const curCombo=selected.length>0?detectCombo(selected,chamVal):null;
@@ -334,10 +341,26 @@ export function Game({gs,socket,roomCode,onExit}){
   function pass(){haptic('light');socket.emit('pass',{code:roomCode});setSelected([]);setChamVal(null);}
   function closetable(){haptic('light');socket.emit('clearTable',{code:roomCode});}
   function sendReaction(emoji){haptic('light');socket.emit('sendReaction',{code:roomCode,toSeatIdx:reactionTarget,emoji});setReactionTarget(null);}
-  function onDragStart(idx){dragIdx.current=idx;}
-  function onDragOver(e,idx){e.preventDefault();setDragOverIdx(idx);}
-  function onDrop(e,toIdx){e.preventDefault();const fromIdx=dragIdx.current;if(fromIdx===null||fromIdx===toIdx){setDragOverIdx(null);return;}const order=[...displayCards.map(c=>c.id)];const item=order.splice(fromIdx,1)[0];order.splice(toIdx,0,item);setCardOrder(order);dragIdx.current=null;setDragOverIdx(null);}
-  function onDragEnd(){dragIdx.current=null;setDragOverIdx(null);}
+
+  // Tap-to-swap for arrange mode (mobile-friendly)
+  function handleArrangeTap(idx){
+    haptic('light');
+    if(arrangeSelected === null){
+      setArrangeSelected(idx);
+    } else {
+      if(arrangeSelected === idx){
+        setArrangeSelected(null);
+        return;
+      }
+      // swap the two cards
+      const order=[...displayCards.map(c=>c.id)];
+      const temp = order[arrangeSelected];
+      order[arrangeSelected] = order[idx];
+      order[idx] = temp;
+      setCardOrder(order);
+      setArrangeSelected(null);
+    }
+  }
 
   const getSeat=(rel)=>{
     const abs=(mySeatIndex+rel)%4;
@@ -347,6 +370,10 @@ export function Game({gs,socket,roomCode,onExit}){
   const right=getSeat(1),top=getSeat(2),left=getSeat(3);
   const timerColor=timeLeft===null?'#4ade80':timeLeft<=5?'#f87171':timeLeft<=10?'#fb923c':'#4ade80';
   const timerPct=timeLeft===null?100:Math.max(0,(timeLeft/30)*100);
+
+  // Calculate card overlap: show cards overlapping ~60-70%
+  const CARD_W = 56;
+  const CARD_VISIBLE = 20; // only 20px of each card visible (except last)
 
   return(
     <div style={{height:'100dvh',overflow:'hidden',background:'linear-gradient(160deg,#080d1a 0%,#050810 50%,#060c14 100%)',color:'#f8fafc',fontFamily:"'Inter',sans-serif",display:'flex',flexDirection:'column',maxWidth:480,margin:'0 auto',position:'relative'}}>
@@ -368,7 +395,7 @@ export function Game({gs,socket,roomCode,onExit}){
         </div>
       )}
 
-      {/* Exit button — top-left */}
+      {/* Exit button */}
       <button onClick={()=>setConfirmExit(true)} style={{position:'absolute',top:10,left:10,zIndex:5,padding:'4px 10px',background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.07)',borderRadius:6,cursor:'pointer',color:'rgba(255,255,255,.18)',fontSize:11,fontFamily:"'Inter',sans-serif",letterSpacing:.3}}>← выйти</button>
 
       {/* Confirm exit overlay */}
@@ -466,7 +493,7 @@ export function Game({gs,socket,roomCode,onExit}){
             {me?.wins>0&&<span style={{fontSize:10,color:'rgba(255,200,50,.6)',background:'rgba(255,200,50,.08)',padding:'1px 6px',borderRadius:6}}>🏆{me.wins}</span>}
             {isMyTurn&&timeLeft!==null&&<span style={{fontSize:10,fontWeight:700,color:timerColor,background:`${timerColor}15`,padding:'1px 6px',borderRadius:6,border:`1px solid ${timerColor}30`}}>{timeLeft}с</span>}
           </div>
-          <button onClick={()=>{setArrangeMode(m=>!m);setSelected([]);setChamVal(null);}} style={{padding:'4px 10px',fontSize:10,fontWeight:600,background:arrangeMode?`${myColor}20`:'rgba(255,255,255,.04)',color:arrangeMode?myColor:'rgba(255,255,255,.3)',border:`1px solid ${arrangeMode?myColor:'rgba(255,255,255,.08)'}`,borderRadius:6,cursor:'pointer',fontFamily:"'Inter',sans-serif",letterSpacing:.3,transition:'all .2s'}}>
+          <button onClick={()=>{setArrangeMode(m=>!m);setSelected([]);setChamVal(null);setArrangeSelected(null);}} style={{padding:'4px 10px',fontSize:10,fontWeight:600,background:arrangeMode?`${myColor}20`:'rgba(255,255,255,.04)',color:arrangeMode?myColor:'rgba(255,255,255,.3)',border:`1px solid ${arrangeMode?myColor:'rgba(255,255,255,.08)'}`,borderRadius:6,cursor:'pointer',fontFamily:"'Inter',sans-serif",letterSpacing:.3,transition:'all .2s'}}>
             {arrangeMode?'✓ Готово':'⠿ Порядок'}
           </button>
         </div>
@@ -487,10 +514,39 @@ export function Game({gs,socket,roomCode,onExit}){
           </div>
         )}
 
-        <div style={{display:'flex',flexWrap:'wrap',gap:4,minHeight:68,padding:'2px 0 12px',alignItems:'flex-end',animation:badAnim?'shake .35s ease':'none'}}>
+        {arrangeMode&&(
+          <div style={{fontSize:10,color:'rgba(96,165,250,.6)',marginBottom:5,textAlign:'center',letterSpacing:.3}}>
+            {arrangeSelected!==null ? '← Нажми на вторую карту для обмена' : 'Нажми на карту чтобы переместить'}
+          </div>
+        )}
+
+        {/* Cards — overlapping fan layout */}
+        <div style={{
+          display:'flex',
+          minHeight:96,
+          padding:'2px 0 12px',
+          alignItems:'flex-end',
+          animation:badAnim?'shake .35s ease':'none',
+          overflowX:'auto',
+          overflowY:'visible',
+          WebkitOverflowScrolling:'touch',
+          paddingBottom:16,
+        }}>
           {displayCards.map((card,idx)=>(
-            <CardFace key={card.id} card={card} sel={!arrangeMode&&isSel(card)} onClick={arrangeMode?undefined:()=>toggleCard(card)} levelVal={myLV} isDragOver={arrangeMode&&dragOverIdx===idx}
-              dragHandlers={arrangeMode?{draggable:true,onDragStart:()=>onDragStart(idx),onDragOver:(e)=>onDragOver(e,idx),onDrop:(e)=>onDrop(e,idx),onDragEnd}:undefined}/>
+            <div key={card.id} style={{
+              flexShrink:0,
+              marginLeft: idx === 0 ? 0 : -(CARD_W - CARD_VISIBLE),
+              zIndex: isSel(card) ? 100 : (arrangeSelected === idx ? 99 : idx),
+              position:'relative',
+            }}>
+              <CardFace
+                card={card}
+                sel={!arrangeMode&&isSel(card)}
+                isArrangeSelected={arrangeMode&&arrangeSelected===idx}
+                onClick={arrangeMode ? ()=>handleArrangeTap(idx) : ()=>toggleCard(card)}
+                levelVal={myLV}
+              />
+            </div>
           ))}
         </div>
 
@@ -522,7 +578,6 @@ export function Game({gs,socket,roomCode,onExit}){
       {phase==='finished'&&(
         <div style={{position:'absolute',inset:0,zIndex:20,background:'rgba(5,8,16,.94)',backdropFilter:'blur(10px)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',animation:'fadeIn .4s ease',padding:24}}>
           {abandoned?(
-            /* ── ABANDONED ── */
             <>
               <div style={{fontSize:52,marginBottom:8}}>🚪</div>
               <div style={{fontSize:18,fontWeight:900,letterSpacing:2,marginBottom:6,fontFamily:"'Outfit',sans-serif",color:'rgba(255,255,255,.6)'}}>ИГРА ЗАВЕРШЕНА</div>
@@ -530,7 +585,6 @@ export function Game({gs,socket,roomCode,onExit}){
               <button onClick={onExit} style={{padding:'13px 36px',background:'rgba(255,255,255,.07)',color:'rgba(255,255,255,.6)',border:'1px solid rgba(255,255,255,.12)',borderRadius:12,cursor:'pointer',fontWeight:700,fontSize:15,fontFamily:"'Outfit',sans-serif",letterSpacing:.5}}>В ЛОББИ →</button>
             </>
           ):isChampion?(
-            /* ── CHAMPION ── */
             <>
               <div style={{fontSize:72,marginBottom:4,animation:'starPop .5s ease both'}}>&#x1F451;</div>
               <div style={{fontSize:11,letterSpacing:6,color:'rgba(245,158,11,.5)',fontFamily:"'Outfit',sans-serif",fontWeight:600,marginBottom:8}}>ЧЕМПИОН СЕССИИ</div>
@@ -561,7 +615,6 @@ export function Game({gs,socket,roomCode,onExit}){
               {mySeatIndex!==0&&<div style={{marginTop:12,fontSize:12,color:'rgba(255,255,255,.22)',letterSpacing:.5}}>Ожидаем хоста...</div>}
             </>
           ):(
-            /* ── NORMAL ROUND END ── */
             <>
               <div style={{fontSize:48,marginBottom:8}}>🏆</div>
               <div style={{fontSize:22,fontWeight:900,letterSpacing:4,marginBottom:6,fontFamily:"'Outfit',sans-serif",background:'linear-gradient(135deg,#fcd34d,#f59e0b)',WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent'}}>ПАРТИЯ ОКОНЧЕНА</div>
