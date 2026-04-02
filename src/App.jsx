@@ -3,8 +3,8 @@ import { io } from "socket.io-client";
 
 const SERVER_URL = "https://sanzhut-server-production.up.railway.app";
 const RED_SUITS = new Set(['♥','♦']);
-const P_COLORS = ['#f87171','#60a5fa','#4ade80','#fb923c'];
-const P_AVATARS = ['♠','♦','♣','♥'];
+const P_COLORS = ['#f87171','#60a5fa','#4ade80','#fb923c','#c084fc','#f472b6'];
+const P_AVATARS = ['♠','♦','♣','♥','★','✦'];
 const CLABELS = {single:'Одна карта',pair:'Пара',small_bomb:'Малая бомба',
   big_bomb:'Большая бомба',hatar:'Хатар',sanzhut:'Санжут'};
 const REG_VALS = ['4','5','6','7','8','9','10','J','Q','K','A','2','3'];
@@ -15,8 +15,7 @@ VR['JB']=13; VR['JR']=14;
 const REACTION_EMOJIS = ['👏','😂','🔥','😤','🫡','💀','❤️','🤝'];
 const rvOf = (c,cv) => c.type==='chameleon'?(cv||'4'):c.value;
 const SEQ_BAD = new Set(['2','3','JB','JR']);
-
-const GAME_LINK = 'https://t.me/SanzhutGameBot/play';
+const GAME_LINK = 'https://t.me/sanzhut_bot/play';
 
 const haptic = (type) => {
   try {
@@ -87,10 +86,12 @@ function hexToRgb(hex){
   const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
   return `${r},${g},${b}`;
 }
+function groupLabel(combo){return combo?CLABELS[combo.type]||'?':'?';}
 
 /* ── Card Face ── */
-function CardFace({card,sel,onClick,sm,levelVal,isArrangeSelected,isDragOver}){
+function CardFace({card,sel,onClick,sm,levelVal,isGroupSelect,onLongPress}){
   const W=sm?28:56, H=sm?40:80;
+  const longPressTimer=useRef(null);
   let topLabel,botLabel,centerSuit,topColor,bgGrad,borderColor;
   if(card.type==='joker_black'){topLabel='JK';botLabel='♟';centerSuit='🃏';topColor='#374151';bgGrad='linear-gradient(145deg,#f9fafb,#e5e7eb)';borderColor='#9ca3af';}
   else if(card.type==='joker_red'){topLabel='JK';botLabel='♦';centerSuit='🃏';topColor='#991b1b';bgGrad='linear-gradient(145deg,#fff5f5,#fecaca)';borderColor='#f87171';}
@@ -98,90 +99,71 @@ function CardFace({card,sel,onClick,sm,levelVal,isArrangeSelected,isDragOver}){
   else{topLabel=card.value;botLabel=card.suit;centerSuit=card.suit;const red=RED_SUITS.has(card.suit);topColor=red?'#c0392b':'#1a1a2e';bgGrad='linear-gradient(145deg,#fffef8,#faf4e0)';borderColor=red?'#f87171':'#d4d0b8';}
   const isLv=card.value===levelVal&&card.type==='regular'&&!sm;
   const fs=sm?{val:9,suit:8,center:12}:{val:15,suit:12,center:24};
-
-  const activeBorder = isArrangeSelected ? '#60a5fa' : sel ? '#f59e0b' : isDragOver ? '#60a5fa' : isLv ? '#4ade80' : borderColor;
-
+  const activeBorder=isGroupSelect?'#60a5fa':sel?'#f59e0b':isLv?'#4ade80':borderColor;
+  function handleTouchStart(){if(!onLongPress) return;longPressTimer.current=setTimeout(()=>{onLongPress();longPressTimer.current=null;},500);}
+  function handleTouchEnd(){if(longPressTimer.current){clearTimeout(longPressTimer.current);longPressTimer.current=null;}}
   return(
-    <div onClick={onClick} style={{
-      width:W,height:H,background:bgGrad,
-      border:`2px solid ${activeBorder}`,
-      borderRadius:sm?5:8,display:'flex',flexDirection:'column',
-      alignItems:'center',justifyContent:'space-between',
-      cursor:onClick?'pointer':'default',
-      transform:sel?'translateY(-14px) scale(1.07)':isArrangeSelected?'translateY(-8px) scale(1.04)':'none',
-      transition:'transform .15s cubic-bezier(.34,1.56,.64,1),box-shadow .15s,border-color .15s',
-      boxShadow:sel?'0 10px 28px rgba(245,158,11,.45),0 0 0 1px rgba(245,158,11,.3)':isArrangeSelected?'0 6px 20px rgba(96,165,250,.4),0 0 0 1px rgba(96,165,250,.3)':isLv?'0 2px 10px rgba(74,222,128,.3)':'0 3px 8px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.8)',
-      color:topColor,fontWeight:'bold',userSelect:'none',flexShrink:0,
-      position:'relative',padding:sm?'2px 3px':'4px 5px',
-    }}>
+    <div onClick={onClick} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd}
+      onContextMenu={e=>{if(onLongPress){e.preventDefault();onLongPress();}}}
+      style={{width:W,height:H,background:bgGrad,border:`2px solid ${activeBorder}`,borderRadius:sm?5:8,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'space-between',cursor:onClick?'pointer':'default',transform:sel?'translateY(-20px) scale(1.08)':isGroupSelect?'translateY(-10px) scale(1.04)':'none',transition:'transform .15s cubic-bezier(.34,1.56,.64,1),box-shadow .15s,border-color .15s',boxShadow:sel?'0 12px 28px rgba(245,158,11,.5),0 0 0 1px rgba(245,158,11,.3)':isGroupSelect?'0 6px 20px rgba(96,165,250,.4)':isLv?'0 2px 10px rgba(74,222,128,.3)':'0 3px 8px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.8)',color:topColor,fontWeight:'bold',userSelect:'none',flexShrink:0,position:'relative',padding:sm?'2px 3px':'4px 5px',WebkitTapHighlightColor:'transparent'}}>
       {isLv&&<div style={{position:'absolute',top:2,right:2,width:5,height:5,borderRadius:'50%',background:'#4ade80',boxShadow:'0 0 6px #4ade80'}}/>}
-      <div style={{alignSelf:'flex-start',lineHeight:1.1}}>
-        <div style={{fontSize:fs.val,fontWeight:'900',letterSpacing:'-0.03em'}}>{topLabel}</div>
-        <div style={{fontSize:fs.suit,lineHeight:1}}>{botLabel}</div>
-      </div>
+      <div style={{alignSelf:'flex-start',lineHeight:1.1}}><div style={{fontSize:fs.val,fontWeight:'900',letterSpacing:'-0.03em'}}>{topLabel}</div><div style={{fontSize:fs.suit,lineHeight:1}}>{botLabel}</div></div>
       {!sm&&<div style={{fontSize:fs.center,opacity:.7,lineHeight:1}}>{centerSuit}</div>}
-      <div style={{alignSelf:'flex-end',lineHeight:1.1,transform:'rotate(180deg)'}}>
-        <div style={{fontSize:fs.val,fontWeight:'900',letterSpacing:'-0.03em'}}>{topLabel}</div>
-        <div style={{fontSize:fs.suit,lineHeight:1}}>{botLabel}</div>
+      <div style={{alignSelf:'flex-end',lineHeight:1.1,transform:'rotate(180deg)'}}><div style={{fontSize:fs.val,fontWeight:'900',letterSpacing:'-0.03em'}}>{topLabel}</div><div style={{fontSize:fs.suit,lineHeight:1}}>{botLabel}</div></div>
+    </div>
+  );
+}
+
+/* ── Grouped Card Stack ── */
+function GroupedStack({group,sel,onClick,levelVal,onUngroup}){
+  const cards=group.cards,count=cards.length,topCard=cards[0],combo=group.combo,label=groupLabel(combo);
+  return(
+    <div style={{position:'relative',flexShrink:0}} onClick={onClick}>
+      {count>1&&Array.from({length:Math.min(count-1,3)}).map((_,i)=>(<div key={i} style={{position:'absolute',top:-(i+1)*3,left:(i+1)*2,width:56,height:80,background:'linear-gradient(145deg,#e8e4d4,#d4d0b8)',border:'2px solid rgba(180,170,140,.5)',borderRadius:8,zIndex:0}}/>))}
+      <div style={{position:'relative',zIndex:4,transform:sel?'translateY(-20px) scale(1.08)':'none',transition:'transform .15s cubic-bezier(.34,1.56,.64,1),box-shadow .15s'}}>
+        <CardFace card={topCard} sel={false} levelVal={levelVal} onLongPress={onUngroup}/>
       </div>
+      <div style={{position:'absolute',top:-10,right:-10,zIndex:10,background:combo.type==='hatar'?'linear-gradient(135deg,#2563eb,#3b82f6)':combo.type==='sanzhut'?'linear-gradient(135deg,#7c3aed,#a855f7)':combo.type==='big_bomb'?'linear-gradient(135deg,#dc2626,#ef4444)':combo.type==='small_bomb'?'linear-gradient(135deg,#d97706,#f59e0b)':'linear-gradient(135deg,#4b5563,#6b7280)',color:'#fff',fontSize:9,fontWeight:800,padding:'2px 6px',borderRadius:8,border:'1.5px solid rgba(255,255,255,.3)',boxShadow:'0 2px 8px rgba(0,0,0,.4)',letterSpacing:.3,whiteSpace:'nowrap',lineHeight:1.3,textAlign:'center'}}>{count<=2?`×${count}`:label}</div>
+      {sel&&<div style={{position:'absolute',bottom:-6,left:'50%',transform:'translateX(-50%)',width:40,height:3,borderRadius:2,background:'#f59e0b',boxShadow:'0 0 8px #f59e0b'}}/>}
     </div>
   );
 }
 
 /* ── Player Seat ── */
-function Seat({player,isActive,cardCount,finished,position,connected=true,onReact}){
-  if(!player) return <div style={{width:56}}/>;
+function Seat({player,isActive,cardCount,finished,position,connected=true,onReact,streakWins,gameMode}){
+  if(!player) return <div style={{width:50}}/>;
   const color=P_COLORS[player.seatIndex??0];
   const avatar=P_AVATARS[player.seatIndex??0];
-  const isTop=position==='top', isLeft=position==='left';
-  const visibleCards=Math.min(cardCount,6), extra=cardCount>6?cardCount-6:0;
+  const isTop=position==='top',isLeft=position==='left';
+  const visibleCards=Math.min(cardCount,5),extra=cardCount>5?cardCount-5:0;
+  const small=position==='top';
   const cardStack=(
     <div style={{display:'flex',flexDirection:isTop?'row':'column',gap:isTop?-6:-8,alignItems:'center'}}>
-      {Array.from({length:visibleCards}).map((_,i)=>(
-        <div key={i} style={{width:isTop?14:10,height:isTop?20:14,background:'linear-gradient(145deg,#1e3a5f,#0f2040)',border:'1px solid rgba(99,179,237,0.18)',borderRadius:2,boxShadow:'0 1px 3px rgba(0,0,0,.5)',marginLeft:isTop?(i>0?-8:0):0,marginTop:isTop?0:(i>0?-8:0)}}/>
-      ))}
-      {extra>0&&<span style={{fontSize:8,color:'rgba(255,255,255,.35)',marginLeft:2}}>+{extra}</span>}
+      {Array.from({length:visibleCards}).map((_,i)=>(<div key={i} style={{width:isTop?12:9,height:isTop?17:12,background:'linear-gradient(145deg,#1e3a5f,#0f2040)',border:'1px solid rgba(99,179,237,0.18)',borderRadius:2,boxShadow:'0 1px 3px rgba(0,0,0,.5)',marginLeft:isTop?(i>0?-7:0):0,marginTop:isTop?0:(i>0?-7:0)}}/>))}
+      {extra>0&&<span style={{fontSize:7,color:'rgba(255,255,255,.35)',marginLeft:2}}>+{extra}</span>}
     </div>
   );
   const badge=(
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
-      <div
-        onClick={!player.isMe&&onReact?()=>{haptic('light');onReact(player.seatIndex);}:undefined}
-        style={{
-          width:36,height:36,borderRadius:'50%',
-          background:isActive?`${color}22`:'rgba(255,255,255,.05)',
-          border:`2px solid ${isActive?color:finished?`${color}44`:!connected?'rgba(255,255,255,.06)':'rgba(255,255,255,.08)'}`,
-          boxShadow:isActive?`0 0 16px ${color}66,0 0 32px ${color}22`:'none',
-          display:'flex',alignItems:'center',justifyContent:'center',
-          fontSize:14,transition:'all .3s',flexShrink:0,position:'relative',
-          cursor:!player.isMe&&onReact?'pointer':'default',
-        }}>
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+      <div onClick={!player.isMe&&onReact?()=>{haptic('light');onReact(player.seatIndex);}:undefined}
+        style={{width:32,height:32,borderRadius:'50%',background:isActive?`${color}22`:'rgba(255,255,255,.05)',border:`2px solid ${isActive?color:finished?`${color}44`:!connected?'rgba(255,255,255,.06)':'rgba(255,255,255,.08)'}`,boxShadow:isActive?`0 0 12px ${color}66`:'none',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,transition:'all .3s',flexShrink:0,position:'relative',cursor:!player.isMe&&onReact?'pointer':'default'}}>
         <span style={{color:isActive?color:'rgba(255,255,255,.3)'}}>{avatar}</span>
-        {isActive&&<div style={{position:'absolute',bottom:-1,right:-1,width:9,height:9,borderRadius:'50%',background:color,border:'1.5px solid #0a0a0f',boxShadow:`0 0 6px ${color}`,animation:'pulse 1.2s infinite'}}/>}
-        {finished&&<div style={{position:'absolute',inset:0,borderRadius:'50%',background:'rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12}}>✓</div>}
-        {!connected&&!finished&&<div style={{position:'absolute',inset:0,borderRadius:'50%',background:'rgba(0,0,0,.65)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10}}>📵</div>}
+        {isActive&&<div style={{position:'absolute',bottom:-1,right:-1,width:7,height:7,borderRadius:'50%',background:color,border:'1.5px solid #0a0a0f',boxShadow:`0 0 6px ${color}`,animation:'pulse 1.2s infinite'}}/>}
+        {finished&&<div style={{position:'absolute',inset:0,borderRadius:'50%',background:'rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10}}>✓</div>}
+        {!connected&&!finished&&<div style={{position:'absolute',inset:0,borderRadius:'50%',background:'rgba(0,0,0,.65)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:8}}>📵</div>}
       </div>
       <div style={{textAlign:'center'}}>
-        <div style={{fontSize:9,fontWeight:700,color:isActive?color:!connected?'rgba(255,100,100,.4)':'rgba(255,255,255,.35)',maxWidth:52,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',letterSpacing:.5}}>
-          {player.name}{!connected&&!finished?' · ✗':''}
-        </div>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:3}}>
-          <div style={{fontSize:12,fontWeight:900,color:'#f59e0b',textShadow:isActive?'0 0 10px rgba(245,158,11,.6)':'none',fontFamily:"'Georgia',serif"}}>{player.level}</div>
-          {player.wins>0&&<div style={{fontSize:8,color:'rgba(255,255,255,.3)',background:'rgba(255,255,255,.06)',padding:'0 4px',borderRadius:4}}>🏆{player.wins}</div>}
+        <div style={{fontSize:8,fontWeight:700,color:isActive?color:!connected?'rgba(255,100,100,.4)':'rgba(255,255,255,.35)',maxWidth:48,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',letterSpacing:.3}}>{player.name}{!connected&&!finished?' ✗':''}</div>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:2}}>
+          {gameMode!=='streak3'&&<div style={{fontSize:10,fontWeight:900,color:'#f59e0b',fontFamily:"'Georgia',serif"}}>{player.level}</div>}
+          {player.wins>0&&<div style={{fontSize:7,color:'rgba(255,255,255,.3)',background:'rgba(255,255,255,.06)',padding:'0 3px',borderRadius:3}}>🏆{player.wins}</div>}
+          {(streakWins||0)>0&&<div style={{fontSize:7,color:'#f59e0b',background:'rgba(245,158,11,.12)',padding:'0 3px',borderRadius:3,fontWeight:700,border:'1px solid rgba(245,158,11,.25)'}}>🔥{streakWins}</div>}
         </div>
       </div>
     </div>
   );
-  if(isTop) return(
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,opacity:finished?.5:!connected?.5:1}}>
-      {badge}{cardStack}
-    </div>
-  );
-  return(
-    <div style={{display:'flex',flexDirection:isLeft?'row':'row-reverse',alignItems:'center',gap:5,opacity:finished?.5:!connected?.5:1}}>
-      {badge}{cardStack}
-    </div>
-  );
+  if(isTop) return <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,opacity:finished?.5:!connected?.5:1}}>{badge}{cardStack}</div>;
+  return <div style={{display:'flex',flexDirection:isLeft?'row':'row-reverse',alignItems:'center',gap:4,opacity:finished?.5:!connected?.5:1}}>{badge}{cardStack}</div>;
 }
 
 /* ── Lobby ── */
@@ -189,6 +171,8 @@ function Lobby({onCreate,onJoin,error}){
   const[name,setName]=useState('');
   const[code,setCode]=useState('');
   const[mode,setMode]=useState(null);
+  const[gameMode,setGameMode]=useState('classic');
+  const[maxPlayers,setMaxPlayers]=useState(4);
   const tgName=window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name;
   useEffect(()=>{if(tgName&&!name) setName(tgName);},[]);
   const S={
@@ -198,22 +182,40 @@ function Lobby({onCreate,onJoin,error}){
     btnGhost:{padding:'13px',width:'100%',background:'rgba(255,255,255,.04)',color:'rgba(255,255,255,.5)',border:'1px solid rgba(255,255,255,.1)',borderRadius:12,cursor:'pointer',fontWeight:600,fontSize:15,fontFamily:"'Outfit',sans-serif",transition:'all .2s'},
     back:{padding:'10px',background:'transparent',color:'rgba(255,255,255,.25)',border:'none',cursor:'pointer',fontSize:13,fontFamily:"'Inter',sans-serif"},
   };
+  const modeBtn=(val,label,desc)=>(<button key={val} onClick={()=>setGameMode(val)} style={{flex:1,padding:'10px 8px',background:gameMode===val?'rgba(245,158,11,.12)':'rgba(255,255,255,.03)',border:`1px solid ${gameMode===val?'rgba(245,158,11,.4)':'rgba(255,255,255,.08)'}`,borderRadius:10,cursor:'pointer',textAlign:'center',transition:'all .2s'}}>
+    <div style={{fontSize:12,fontWeight:700,color:gameMode===val?'#f59e0b':'rgba(255,255,255,.5)',fontFamily:"'Outfit',sans-serif"}}>{label}</div>
+    <div style={{fontSize:9,color:'rgba(255,255,255,.25)',marginTop:2}}>{desc}</div>
+  </button>);
   return(
     <div style={S.wrap}>
-      <div style={{textAlign:'center',marginBottom:48}}>
+      <div style={{textAlign:'center',marginBottom:40}}>
         <div style={{fontSize:11,letterSpacing:6,color:'rgba(245,158,11,.4)',fontFamily:"'Outfit',sans-serif",fontWeight:600,marginBottom:10}}>КАРТОЧНАЯ ИГРА</div>
         <div style={{fontSize:42,fontWeight:900,letterSpacing:8,fontFamily:"'Outfit',sans-serif",background:'linear-gradient(135deg,#fcd34d,#f59e0b,#d97706)',WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent',filter:'drop-shadow(0 0 40px rgba(245,158,11,.4))'}}>🃏 ВАН ЗАН</div>
-        <div style={{marginTop:10,fontSize:10,color:'rgba(255,255,255,.15)',letterSpacing:4,fontFamily:"'Outfit',sans-serif"}}>ОНЛАЙН · 4 ИГРОКА</div>
+        <div style={{marginTop:10,fontSize:10,color:'rgba(255,255,255,.15)',letterSpacing:4,fontFamily:"'Outfit',sans-serif"}}>ОНЛАЙН · 3-6 ИГРОКОВ</div>
       </div>
-      {error&&(<div style={{marginBottom:14,padding:'10px 16px',background:'rgba(239,68,68,.1)',border:'1px solid rgba(239,68,68,.25)',borderRadius:10,fontSize:12,color:'#fca5a5',maxWidth:300,width:'100%',textAlign:'center'}}>{error}</div>)}
-      <div style={{width:'100%',maxWidth:300,display:'flex',flexDirection:'column',gap:10}}>
+      {error&&(<div style={{marginBottom:14,padding:'10px 16px',background:'rgba(239,68,68,.1)',border:'1px solid rgba(239,68,68,.25)',borderRadius:10,fontSize:12,color:'#fca5a5',maxWidth:320,width:'100%',textAlign:'center'}}>{error}</div>)}
+      <div style={{width:'100%',maxWidth:320,display:'flex',flexDirection:'column',gap:10}}>
         {!mode?(
           <><button onClick={()=>{haptic('light');setMode('create');}} style={S.btnPrimary}>СОЗДАТЬ КОМНАТУ</button>
           <button onClick={()=>{haptic('light');setMode('join');}} style={S.btnGhost}>ВОЙТИ В КОМНАТУ</button></>
         ):mode==='create'?(
-          <><input value={name} onChange={e=>setName(e.target.value)} placeholder="Твоё имя" maxLength={16} style={S.inp}/>
-          <button onClick={()=>name.trim()&&onCreate(name.trim())} style={{...S.btnPrimary,opacity:name.trim()?1:.4}}>СОЗДАТЬ</button>
-          <button onClick={()=>setMode(null)} style={S.back}>← Назад</button></>
+          <>
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Твоё имя" maxLength={16} style={S.inp}/>
+          {/* Game mode */}
+          <div style={{display:'flex',gap:8}}>
+            {modeBtn('classic','Классика','Уровни до 3')}
+            {modeBtn('streak3','3 победы','Серия подряд')}
+          </div>
+          {/* Player count */}
+          <div>
+            <div style={{fontSize:10,color:'rgba(255,255,255,.25)',letterSpacing:2,marginBottom:6,textAlign:'center',fontFamily:"'Outfit',sans-serif"}}>ИГРОКОВ</div>
+            <div style={{display:'flex',gap:6,justifyContent:'center'}}>
+              {[3,4,5,6].map(n=>(<button key={n} onClick={()=>setMaxPlayers(n)} style={{width:42,height:36,background:maxPlayers===n?'rgba(245,158,11,.15)':'rgba(255,255,255,.03)',border:`1px solid ${maxPlayers===n?'rgba(245,158,11,.4)':'rgba(255,255,255,.08)'}`,borderRadius:8,cursor:'pointer',color:maxPlayers===n?'#f59e0b':'rgba(255,255,255,.4)',fontSize:16,fontWeight:800,fontFamily:"'Outfit',sans-serif",transition:'all .2s'}}>{n}</button>))}
+            </div>
+          </div>
+          <button onClick={()=>name.trim()&&onCreate(name.trim(),gameMode,maxPlayers)} style={{...S.btnPrimary,opacity:name.trim()?1:.4}}>СОЗДАТЬ</button>
+          <button onClick={()=>setMode(null)} style={S.back}>← Назад</button>
+          </>
         ):(
           <><input value={name} onChange={e=>setName(e.target.value)} placeholder="Твоё имя" maxLength={16} style={S.inp}/>
           <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="КОД КОМНАТЫ" maxLength={6} style={{...S.inp,fontSize:22,letterSpacing:8,textAlign:'center',color:'#f59e0b'}}/>
@@ -226,48 +228,47 @@ function Lobby({onCreate,onJoin,error}){
 }
 
 /* ── Waiting ── */
-function WaitingRoom({roomCode,players,onFillBots,onExit}){
+function WaitingRoom({roomCode,players,maxPlayers,gameMode,onFillBots,onStart,onExit}){
   const[copied,setCopied]=useState(false);
   const isHost=players[0]?.isMe;
-  const hasEmpty=players.length<4;
+  const hasEmpty=players.length<maxPlayers;
+  const canStart=players.length>=3;
   function copyCode(){haptic('light');navigator.clipboard.writeText(roomCode).catch(()=>{});setCopied(true);setTimeout(()=>setCopied(false),2000);}
   function shareRoom(){
     haptic('light');
-    const text = `🃏 Играем в Ван Зан! Код комнаты: ${roomCode}\n\nПрисоединяйся: ${GAME_LINK}`;
-    if(navigator.share){
-      navigator.share({text, url: GAME_LINK}).catch(()=>{});
-    } else {
-      navigator.clipboard.writeText(text).catch(()=>{});
-      setCopied(true);setTimeout(()=>setCopied(false),2000);
-    }
+    const text=`🃏 Играем в Ван Зан! Код комнаты: ${roomCode}\n\nПрисоединяйся: ${GAME_LINK}`;
+    if(navigator.share){navigator.share({text,url:GAME_LINK}).catch(()=>{});}
+    else{navigator.clipboard.writeText(text).catch(()=>{});setCopied(true);setTimeout(()=>setCopied(false),2000);}
   }
+  const modeLabel=gameMode==='streak3'?'🔥 3 победы':'🎯 Классика';
   return(
     <div style={{minHeight:'100vh',background:'radial-gradient(ellipse at 40% 0%,#0d1f3c,#050810)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24,color:'#f8fafc',fontFamily:"'Inter',sans-serif",position:'relative'}}>
-      <button onClick={onExit} style={{position:'absolute',top:16,left:16,padding:'6px 12px',background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',borderRadius:8,cursor:'pointer',color:'rgba(255,255,255,.25)',fontSize:12,fontFamily:"'Inter',sans-serif"}}>← Выйти</button>
-      <div style={{fontSize:28,fontWeight:900,letterSpacing:6,fontFamily:"'Outfit',sans-serif",background:'linear-gradient(135deg,#fcd34d,#f59e0b)',WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent',marginBottom:8}}>🃏 ВАН ЗАН</div>
-      <div style={{fontSize:11,color:'rgba(255,255,255,.25)',letterSpacing:3,marginBottom:36,fontFamily:"'Outfit',sans-serif"}}>ОЖИДАНИЕ ИГРОКОВ</div>
-      <div onClick={copyCode} style={{background:'rgba(245,158,11,.06)',border:'1px solid rgba(245,158,11,.2)',borderRadius:16,padding:'20px 40px',marginBottom:16,textAlign:'center',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
-        <div style={{fontSize:9,color:'rgba(245,158,11,.4)',letterSpacing:4,marginBottom:10,fontFamily:"'Outfit',sans-serif"}}>КОД КОМНАТЫ</div>
-        <div style={{fontSize:44,fontWeight:900,color:'#f59e0b',letterSpacing:12,textShadow:'0 0 40px rgba(245,158,11,.4)',fontFamily:"'Outfit',sans-serif"}}>{roomCode}</div>
-        <div style={{fontSize:10,color:copied?'#4ade80':'rgba(255,255,255,.2)',marginTop:10,transition:'color .3s'}}>{copied?'✓ Скопировано!':'Нажми чтобы скопировать'}</div>
+      <button onClick={onExit} style={{position:'absolute',top:16,left:16,padding:'6px 12px',background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',borderRadius:8,cursor:'pointer',color:'rgba(255,255,255,.25)',fontSize:12}}>← Выйти</button>
+      <div style={{fontSize:28,fontWeight:900,letterSpacing:6,fontFamily:"'Outfit',sans-serif",background:'linear-gradient(135deg,#fcd34d,#f59e0b)',WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent',marginBottom:4}}>🃏 ВАН ЗАН</div>
+      <div style={{fontSize:10,color:'rgba(255,255,255,.3)',marginBottom:4,fontFamily:"'Outfit',sans-serif"}}>{modeLabel} · до {maxPlayers} игроков</div>
+      <div style={{fontSize:11,color:'rgba(255,255,255,.25)',letterSpacing:3,marginBottom:28,fontFamily:"'Outfit',sans-serif"}}>ОЖИДАНИЕ ИГРОКОВ</div>
+      <div onClick={copyCode} style={{background:'rgba(245,158,11,.06)',border:'1px solid rgba(245,158,11,.2)',borderRadius:16,padding:'18px 36px',marginBottom:14,textAlign:'center',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+        <div style={{fontSize:9,color:'rgba(245,158,11,.4)',letterSpacing:4,marginBottom:8,fontFamily:"'Outfit',sans-serif"}}>КОД КОМНАТЫ</div>
+        <div style={{fontSize:40,fontWeight:900,color:'#f59e0b',letterSpacing:12,textShadow:'0 0 40px rgba(245,158,11,.4)',fontFamily:"'Outfit',sans-serif"}}>{roomCode}</div>
+        <div style={{fontSize:10,color:copied?'#4ade80':'rgba(255,255,255,.2)',marginTop:8,transition:'color .3s'}}>{copied?'✓ Скопировано!':'Нажми чтобы скопировать'}</div>
       </div>
-      <div style={{display:'flex',gap:8,marginBottom:24}}>
-        <button onClick={shareRoom} style={{padding:'10px 20px',background:'rgba(96,165,250,.1)',border:'1px solid rgba(96,165,250,.25)',borderRadius:10,cursor:'pointer',color:'#60a5fa',fontSize:13,fontWeight:600,fontFamily:"'Outfit',sans-serif",letterSpacing:.5}}>📬 Поделиться</button>
-        {isHost&&hasEmpty&&(
-          <button onClick={()=>{haptic('impact');onFillBots();}} style={{padding:'10px 20px',background:'rgba(74,222,128,.1)',border:'1px solid rgba(74,222,128,.25)',borderRadius:10,cursor:'pointer',color:'#4ade80',fontSize:13,fontWeight:600,fontFamily:"'Outfit',sans-serif",letterSpacing:.5}}>⚡ С ботами</button>
-        )}
+      <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap',justifyContent:'center'}}>
+        <button onClick={shareRoom} style={{padding:'9px 18px',background:'rgba(96,165,250,.1)',border:'1px solid rgba(96,165,250,.25)',borderRadius:10,cursor:'pointer',color:'#60a5fa',fontSize:12,fontWeight:600,fontFamily:"'Outfit',sans-serif"}}>📬 Поделиться</button>
+        {isHost&&hasEmpty&&(<button onClick={()=>{haptic('impact');onFillBots();}} style={{padding:'9px 18px',background:'rgba(74,222,128,.1)',border:'1px solid rgba(74,222,128,.25)',borderRadius:10,cursor:'pointer',color:'#4ade80',fontSize:12,fontWeight:600,fontFamily:"'Outfit',sans-serif"}}>⚡ Боты</button>)}
+        {isHost&&canStart&&(<button onClick={()=>{haptic('impact');onStart();}} style={{padding:'9px 18px',background:'linear-gradient(135deg,#d97706,#f59e0b)',border:'none',borderRadius:10,cursor:'pointer',color:'#111',fontSize:12,fontWeight:800,fontFamily:"'Outfit',sans-serif",boxShadow:'0 3px 14px rgba(245,158,11,.4)'}}>▶ Начать</button>)}
       </div>
-      <div style={{width:'100%',maxWidth:300,display:'flex',flexDirection:'column',gap:8}}>
-        {[0,1,2,3].map(i=>{
+      <div style={{width:'100%',maxWidth:300,display:'flex',flexDirection:'column',gap:7}}>
+        {Array.from({length:maxPlayers}).map(i=>{
           const p=players[i],c=P_COLORS[i];
-          return(<div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'11px 16px',borderRadius:12,background:p?`rgba(${hexToRgb(c)},.05)`:'rgba(255,255,255,.02)',border:`1px solid ${p?c+'30':'rgba(255,255,255,.05)'}`,transition:'all .3s'}}>
-            <div style={{width:8,height:8,borderRadius:'50%',flexShrink:0,background:p?c:'rgba(255,255,255,.08)',boxShadow:p?`0 0 8px ${c}`:'none'}}/>
-            <span style={{color:p?'#f8fafc':'rgba(255,255,255,.18)',fontSize:14,fontWeight:p?600:400}}>{p?.name||`Игрок ${i+1}...`}</span>
-            {p&&<span style={{marginLeft:'auto',fontSize:12,color:'#f59e0b',fontFamily:"'Georgia',serif",fontWeight:700}}>{p.level}</span>}
+          return(<div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderRadius:10,background:p?`rgba(${hexToRgb(c)},.05)`:'rgba(255,255,255,.02)',border:`1px solid ${p?c+'30':'rgba(255,255,255,.05)'}`,transition:'all .3s'}}>
+            <div style={{width:7,height:7,borderRadius:'50%',flexShrink:0,background:p?c:'rgba(255,255,255,.08)',boxShadow:p?`0 0 8px ${c}`:'none'}}/>
+            <span style={{color:p?'#f8fafc':'rgba(255,255,255,.18)',fontSize:13,fontWeight:p?600:400}}>{p?.name||`Игрок ${i+1}...`}</span>
+            {p&&gameMode!=='streak3'&&<span style={{marginLeft:'auto',fontSize:11,color:'#f59e0b',fontFamily:"'Georgia',serif",fontWeight:700}}>{p.level||'4'}</span>}
           </div>);
         })}
       </div>
-      <div style={{marginTop:24,fontSize:10,color:'rgba(255,255,255,.15)',letterSpacing:2}}>ИГРА НАЧНЁТСЯ АВТОМАТИЧЕСКИ</div>
+      {!isHost&&<div style={{marginTop:20,fontSize:10,color:'rgba(255,255,255,.15)',letterSpacing:2}}>ХОСТ НАЧНЁТ ИГРУ</div>}
+      {isHost&&!canStart&&<div style={{marginTop:20,fontSize:10,color:'rgba(255,255,255,.15)',letterSpacing:2}}>НУЖНО МИНИМУМ 3 ИГРОКА</div>}
     </div>
   );
 }
@@ -276,8 +277,9 @@ function WaitingRoom({roomCode,players,onFillBots,onExit}){
 export function Game({gs,socket,roomCode,onExit}){
   const[selected,setSelected]=useState([]);
   const[chamVal,setChamVal]=useState(null);
-  const[arrangeMode,setArrangeMode]=useState(false);
-  const[arrangeSelected,setArrangeSelected]=useState(null); // index of first tapped card in arrange mode
+  const[groupMode,setGroupMode]=useState(false);
+  const[groupSelect,setGroupSelect]=useState([]);
+  const[groups,setGroups]=useState([]);
   const[badAnim,setBadAnim]=useState(false);
   const[cardOrder,setCardOrder]=useState(null);
   const[timeLeft,setTimeLeft]=useState(null);
@@ -286,7 +288,9 @@ export function Game({gs,socket,roomCode,onExit}){
   const[floatingReactions,setFloatingReactions]=useState([]);
   const[confirmExit,setConfirmExit]=useState(false);
   const prevPhaseRef=useRef(gs.phase);
-  const{players,table,log,finished,phase,myCards,mySeatIndex,currentPlayer,turnDeadline,champion,abandoned}=gs;
+  const groupIdCounter=useRef(0);
+  const{players,table,log,finished,phase,myCards,mySeatIndex,currentPlayer,turnDeadline,champion,abandoned,gameMode,playerCount}=gs;
+  const total=playerCount||players.length;
   const isMyTurn=mySeatIndex===currentPlayer&&phase==='playing';
   const me=players[mySeatIndex];
   const myLV=me?.level||'4';
@@ -294,41 +298,22 @@ export function Game({gs,socket,roomCode,onExit}){
   const isChampion=champion!==null&&champion!==undefined;
   const championPlayer=isChampion?players.find(p=>p.seatIndex===champion):null;
   const iOwnTable=!!(isMyTurn&&table&&table.playedBy===mySeatIndex);
+  const isStreak=gameMode==='streak3';
 
-  // Reaction listener
-  useEffect(()=>{
-    const onReaction=({fromSeatIdx,toSeatIdx,emoji,fromName})=>{
-      haptic('light');
-      const id=Math.random();
-      const offsetX=(Math.random()-.5)*50;
-      setFloatingReactions(r=>[...r,{id,toSeatIdx,emoji,offsetX,fromName}]);
-      setTimeout(()=>setFloatingReactions(r=>r.filter(x=>x.id!==id)),2500);
-    };
-    socket.on('reaction',onReaction);
-    return()=>socket.off('reaction',onReaction);
-  },[socket]);
-
-  // Turn countdown
-  useEffect(()=>{
-    if(!turnDeadline){setTimeLeft(null);return;}
-    const update=()=>setTimeLeft(Math.max(0,Math.ceil((turnDeadline-Date.now())/1000)));
-    update();
-    const id=setInterval(update,500);
-    return()=>clearInterval(id);
-  },[turnDeadline]);
-
-  useEffect(()=>{
-    if(phase==='finished'&&prevPhaseRef.current==='playing') haptic('success');
-    prevPhaseRef.current=phase;
-  },[phase]);
-
+  useEffect(()=>{const onReaction=({fromSeatIdx,toSeatIdx,emoji,fromName})=>{haptic('light');const id=Math.random();const offsetX=(Math.random()-.5)*50;setFloatingReactions(r=>[...r,{id,toSeatIdx,emoji,offsetX,fromName}]);setTimeout(()=>setFloatingReactions(r=>r.filter(x=>x.id!==id)),2500);};socket.on('reaction',onReaction);return()=>socket.off('reaction',onReaction);},[socket]);
+  useEffect(()=>{if(!turnDeadline){setTimeLeft(null);return;}const update=()=>setTimeLeft(Math.max(0,Math.ceil((turnDeadline-Date.now())/1000)));update();const id=setInterval(update,500);return()=>clearInterval(id);},[turnDeadline]);
+  useEffect(()=>{if(phase==='finished'&&prevPhaseRef.current==='playing') haptic('success');prevPhaseRef.current=phase;},[phase]);
   useEffect(()=>{setCardOrder(sortCards(myCards).map(c=>c.id));},[myCards.length]);
   useEffect(()=>{if(!isMyTurn){setSelected([]);setChamVal(null);}},[isMyTurn]);
+  useEffect(()=>{const currentIds=new Set(myCards.map(c=>c.id));setGroups(prev=>prev.filter(g=>g.cardIds.every(id=>currentIds.has(id))));},[myCards]);
 
   const existingIds=new Set(myCards.map(c=>c.id));
   const cardById=Object.fromEntries(myCards.map(c=>[c.id,c]));
   const orderedIds=(cardOrder||[]).filter(id=>existingIds.has(id));
   const displayCards=orderedIds.length===myCards.length?orderedIds.map(id=>cardById[id]):sortCards(myCards);
+  const usedGroupIds=new Set();
+  const displayItems=[];
+  for(const card of displayCards){const grp=groups.find(g=>g.cardIds.includes(card.id));if(grp){if(!usedGroupIds.has(grp.id)){usedGroupIds.add(grp.id);displayItems.push({type:'group',group:grp,cards:grp.cardIds.map(id=>cardById[id]).filter(Boolean)});}}else{displayItems.push({type:'card',card});}}
   const isSel=c=>selected.some(s=>s.id===c.id);
   const hasChamSel=selected.some(c=>c.type==='chameleon');
   const curCombo=selected.length>0?detectCombo(selected,chamVal):null;
@@ -336,310 +321,144 @@ export function Game({gs,socket,roomCode,onExit}){
   const canPassIt=!!(table&&table.playedBy!==mySeatIndex&&isMyTurn);
 
   function bad(){setBadAnim(true);haptic('error');setTimeout(()=>setBadAnim(false),400);}
-  function toggleCard(card){if(arrangeMode||!isMyTurn) return;haptic('light');const al=selected.some(c=>c.id===card.id);const ns=al?selected.filter(c=>c.id!==card.id):[...selected,card];setSelected(ns);if(!ns.some(c=>c.type==='chameleon')) setChamVal(null);}
-  function playCards(){if(!canPlayIt){bad();return;}haptic('impact');socket.emit('playCards',{code:roomCode,cardIds:selected.map(c=>c.id),chamVal});setSelected([]);setChamVal(null);setArrangeMode(false);}
+  function toggleCard(card){if(groupMode||!isMyTurn) return;haptic('light');const al=selected.some(c=>c.id===card.id);const ns=al?selected.filter(c=>c.id!==card.id):[...selected,card];setSelected(ns);if(!ns.some(c=>c.type==='chameleon')) setChamVal(null);}
+  function toggleGroupOnPlay(grp){if(!isMyTurn) return;haptic('light');const grpCards=grp.cardIds.map(id=>cardById[id]).filter(Boolean);const allSelected=grpCards.every(c=>selected.some(s=>s.id===c.id));if(allSelected){setSelected(prev=>prev.filter(s=>!grp.cardIds.includes(s.id)));}else{setSelected([...selected.filter(s=>!grp.cardIds.includes(s.id)),...grpCards]);}}
+  function toggleGroupSelect(cardId){haptic('light');setGroupSelect(prev=>prev.includes(cardId)?prev.filter(id=>id!==cardId):[...prev,cardId]);}
+  function createGroup(){const cards=groupSelect.map(id=>cardById[id]).filter(Boolean);if(cards.length<2){haptic('error');return;}const combo=detectCombo(cards);if(!combo){haptic('error');return;}haptic('success');const gid=++groupIdCounter.current;setGroups(prev=>[...prev,{id:gid,cardIds:groupSelect.slice(),combo}]);setGroupSelect([]);}
+  function ungroupGroup(grpId){haptic('light');setGroups(prev=>prev.filter(g=>g.id!==grpId));}
+  function playCards(){if(!canPlayIt){bad();return;}haptic('impact');socket.emit('playCards',{code:roomCode,cardIds:selected.map(c=>c.id),chamVal});setSelected([]);setChamVal(null);setGroupMode(false);setGroupSelect([]);}
   function pass(){haptic('light');socket.emit('pass',{code:roomCode});setSelected([]);setChamVal(null);}
   function closetable(){haptic('light');socket.emit('clearTable',{code:roomCode});}
   function sendReaction(emoji){haptic('light');socket.emit('sendReaction',{code:roomCode,toSeatIdx:reactionTarget,emoji});setReactionTarget(null);}
 
-  // Tap-to-swap for arrange mode (mobile-friendly)
-  function handleArrangeTap(idx){
-    haptic('light');
-    if(arrangeSelected === null){
-      setArrangeSelected(idx);
-    } else {
-      if(arrangeSelected === idx){
-        setArrangeSelected(null);
-        return;
-      }
-      // swap the two cards
-      const order=[...displayCards.map(c=>c.id)];
-      const temp = order[arrangeSelected];
-      order[arrangeSelected] = order[idx];
-      order[idx] = temp;
-      setCardOrder(order);
-      setArrangeSelected(null);
-    }
-  }
-
-  const getSeat=(rel)=>{
-    const abs=(mySeatIndex+rel)%4;
+  // Adaptive seating: arrange other players around the table
+  const otherSeats=[];
+  for(let rel=1;rel<total;rel++){
+    const abs=(mySeatIndex+rel)%total;
     const p=players[abs];
-    return{player:p,isActive:currentPlayer===abs&&phase==='playing',cardCount:p?.cardCount||0,finished:finished.includes(abs),connected:p?.connected!==false};
-  };
-  const right=getSeat(1),top=getSeat(2),left=getSeat(3);
+    otherSeats.push({player:p,isActive:currentPlayer===abs&&phase==='playing',cardCount:p?.cardCount||0,finished:finished.includes(abs),connected:p?.connected!==false,streakWins:p?.streakWins||0});
+  }
+  // Position mapping based on count of other players
+  function getPositions(count){
+    if(count===2) return ['left','top','right'].slice(0,2); // left, right
+    if(count===3) return ['left','top','right'];
+    if(count===4) return ['left','top','top','right'];
+    if(count===5) return ['left','top','top','top','right'];
+    return ['left','top','right'];
+  }
+  const positions=getPositions(otherSeats.length);
+  const leftPlayers=otherSeats.filter((_,i)=>positions[i]==='left');
+  const topPlayers=otherSeats.filter((_,i)=>positions[i]==='top');
+  const rightPlayers=otherSeats.filter((_,i)=>positions[i]==='right');
+
   const timerColor=timeLeft===null?'#4ade80':timeLeft<=5?'#f87171':timeLeft<=10?'#fb923c':'#4ade80';
   const timerPct=timeLeft===null?100:Math.max(0,(timeLeft/30)*100);
-
-  // Calculate card overlap: show cards overlapping ~60-70%
-  const CARD_W = 56;
-  const CARD_VISIBLE = 20; // only 20px of each card visible (except last)
+  const CARD_W=56,CARD_VISIBLE=22;
+  const groupSelCards=groupSelect.map(id=>cardById[id]).filter(Boolean);
+  const groupSelCombo=groupSelCards.length>=2?detectCombo(groupSelCards):null;
 
   return(
     <div style={{height:'100dvh',overflow:'hidden',background:'linear-gradient(160deg,#080d1a 0%,#050810 50%,#060c14 100%)',color:'#f8fafc',fontFamily:"'Inter',sans-serif",display:'flex',flexDirection:'column',maxWidth:480,margin:'0 auto',position:'relative'}}>
-      <style>{`
-        @keyframes pulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
-        @keyframes shake{0%,100%{transform:none}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
-        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-        @keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes cardDeal{from{opacity:0;transform:translateY(-12px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
-        @keyframes floatUp{0%{opacity:1;transform:translate(-50%,-50%) scale(.6)}20%{opacity:1;transform:translate(-50%,-70%) scale(1.3)}100%{opacity:0;transform:translate(-50%,-160%) scale(1)}}
-        @keyframes champGlow{0%,100%{text-shadow:0 0 40px #f59e0b,0 0 80px #f59e0b}50%{text-shadow:0 0 60px #fcd34d,0 0 120px #fcd34d,0 0 200px rgba(245,158,11,.4)}}
-        @keyframes starPop{0%{opacity:0;transform:scale(0) rotate(-20deg)}60%{opacity:1;transform:scale(1.3) rotate(5deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
-      `}</style>
+      <style>{`@keyframes pulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}@keyframes shake{0%,100%{transform:none}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes cardDeal{from{opacity:0;transform:translateY(-12px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes floatUp{0%{opacity:1;transform:translate(-50%,-50%) scale(.6)}20%{opacity:1;transform:translate(-50%,-70%) scale(1.3)}100%{opacity:0;transform:translate(-50%,-160%) scale(1)}}@keyframes champGlow{0%,100%{text-shadow:0 0 40px #f59e0b,0 0 80px #f59e0b}50%{text-shadow:0 0 60px #fcd34d,0 0 120px #fcd34d,0 0 200px rgba(245,158,11,.4)}}@keyframes starPop{0%{opacity:0;transform:scale(0) rotate(-20deg)}60%{opacity:1;transform:scale(1.3) rotate(5deg)}100%{opacity:1;transform:scale(1) rotate(0)}}`}</style>
 
-      {/* Timer bar */}
-      {phase==='playing'&&(
-        <div style={{position:'absolute',top:0,left:0,right:0,height:3,zIndex:10,background:'rgba(255,255,255,.05)'}}>
-          <div style={{height:'100%',width:`${timerPct}%`,background:timerColor,transition:'width .5s linear,background .3s',boxShadow:`0 0 6px ${timerColor}`}}/>
-        </div>
-      )}
+      {phase==='playing'&&(<div style={{position:'absolute',top:0,left:0,right:0,height:3,zIndex:10,background:'rgba(255,255,255,.05)'}}><div style={{height:'100%',width:`${timerPct}%`,background:timerColor,transition:'width .5s linear,background .3s',boxShadow:`0 0 6px ${timerColor}`}}/></div>)}
+      <button onClick={()=>setConfirmExit(true)} style={{position:'absolute',top:10,left:10,zIndex:5,padding:'4px 10px',background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.07)',borderRadius:6,cursor:'pointer',color:'rgba(255,255,255,.18)',fontSize:11,letterSpacing:.3}}>← выйти</button>
+      {isStreak&&<div style={{position:'absolute',top:10,right:10,zIndex:5,padding:'3px 8px',background:'rgba(245,158,11,.1)',border:'1px solid rgba(245,158,11,.2)',borderRadius:6,fontSize:9,color:'#f59e0b',fontWeight:700,letterSpacing:.5}}>🔥 3 ПОБЕДЫ</div>}
 
-      {/* Exit button */}
-      <button onClick={()=>setConfirmExit(true)} style={{position:'absolute',top:10,left:10,zIndex:5,padding:'4px 10px',background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.07)',borderRadius:6,cursor:'pointer',color:'rgba(255,255,255,.18)',fontSize:11,fontFamily:"'Inter',sans-serif",letterSpacing:.3}}>← выйти</button>
+      {confirmExit&&(<div style={{position:'absolute',inset:0,zIndex:40,background:'rgba(0,0,0,.7)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',animation:'fadeIn .15s ease'}}><div style={{background:'rgba(10,14,28,.97)',border:'1px solid rgba(255,255,255,.1)',borderRadius:16,padding:'28px 24px',maxWidth:280,width:'100%',textAlign:'center'}}><div style={{fontSize:28,marginBottom:8}}>🚪</div><div style={{fontSize:15,fontWeight:700,color:'#f8fafc',marginBottom:6,fontFamily:"'Outfit',sans-serif"}}>Выйти из игры?</div><div style={{fontSize:12,color:'rgba(255,255,255,.35)',marginBottom:20,lineHeight:1.5}}>Прогресс сохранится</div><div style={{display:'flex',gap:10}}><button onClick={()=>setConfirmExit(false)} style={{flex:1,padding:'11px',background:'rgba(255,255,255,.05)',color:'rgba(255,255,255,.5)',border:'1px solid rgba(255,255,255,.1)',borderRadius:10,cursor:'pointer',fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:600}}>Остаться</button><button onClick={()=>{haptic('warning');onExit();}} style={{flex:1,padding:'11px',background:'rgba(239,68,68,.12)',color:'#f87171',border:'1px solid rgba(239,68,68,.25)',borderRadius:10,cursor:'pointer',fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:700}}>Выйти</button></div></div></div>)}
+      {floatingReactions.map(r=>(<div key={r.id} style={{position:'absolute',top:'42%',left:`calc(50% + ${r.offsetX}px)`,fontSize:34,animation:'floatUp 2.5s ease forwards',pointerEvents:'none',zIndex:15,lineHeight:1}}>{r.emoji}</div>))}
+      {reactionTarget!==null&&(<div onClick={()=>setReactionTarget(null)} style={{position:'absolute',inset:0,zIndex:30,background:'rgba(0,0,0,.5)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',animation:'fadeIn .15s ease'}}><div onClick={e=>e.stopPropagation()} style={{background:'rgba(15,20,35,.95)',border:'1px solid rgba(255,255,255,.1)',borderRadius:16,padding:'16px 20px',display:'flex',gap:12,flexWrap:'wrap',justifyContent:'center',maxWidth:240}}><div style={{width:'100%',textAlign:'center',fontSize:10,color:'rgba(255,255,255,.3)',letterSpacing:2,marginBottom:4}}>РЕАКЦИЯ</div>{REACTION_EMOJIS.map(e=>(<button key={e} onClick={()=>sendReaction(e)} style={{fontSize:28,background:'rgba(255,255,255,.05)',border:'1px solid rgba(255,255,255,.08)',borderRadius:10,padding:'8px 10px',cursor:'pointer',lineHeight:1}}>{e}</button>))}</div></div>)}
 
-      {/* Confirm exit overlay */}
-      {confirmExit&&(
-        <div style={{position:'absolute',inset:0,zIndex:40,background:'rgba(0,0,0,.7)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',animation:'fadeIn .15s ease'}}>
-          <div style={{background:'rgba(10,14,28,.97)',border:'1px solid rgba(255,255,255,.1)',borderRadius:16,padding:'28px 24px',maxWidth:280,width:'100%',textAlign:'center'}}>
-            <div style={{fontSize:28,marginBottom:8}}>🚪</div>
-            <div style={{fontSize:15,fontWeight:700,color:'#f8fafc',marginBottom:6,fontFamily:"'Outfit',sans-serif"}}>Выйти из игры?</div>
-            <div style={{fontSize:12,color:'rgba(255,255,255,.35)',marginBottom:20,lineHeight:1.5}}>Прогресс сессии сохранится для остальных игроков</div>
-            <div style={{display:'flex',gap:10}}>
-              <button onClick={()=>setConfirmExit(false)} style={{flex:1,padding:'11px',background:'rgba(255,255,255,.05)',color:'rgba(255,255,255,.5)',border:'1px solid rgba(255,255,255,.1)',borderRadius:10,cursor:'pointer',fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:600}}>Остаться</button>
-              <button onClick={()=>{haptic('warning');onExit();}} style={{flex:1,padding:'11px',background:'rgba(239,68,68,.12)',color:'#f87171',border:'1px solid rgba(239,68,68,.25)',borderRadius:10,cursor:'pointer',fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:700}}>Выйти</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Floating reactions */}
-      {floatingReactions.map(r=>(
-        <div key={r.id} style={{position:'absolute',top:'42%',left:`calc(50% + ${r.offsetX}px)`,fontSize:34,animation:'floatUp 2.5s ease forwards',pointerEvents:'none',zIndex:15,lineHeight:1}}>
-          {r.emoji}
-        </div>
-      ))}
-
-      {/* Reaction picker overlay */}
-      {reactionTarget!==null&&(
-        <div onClick={()=>setReactionTarget(null)} style={{position:'absolute',inset:0,zIndex:30,background:'rgba(0,0,0,.5)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',animation:'fadeIn .15s ease'}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:'rgba(15,20,35,.95)',border:'1px solid rgba(255,255,255,.1)',borderRadius:16,padding:'16px 20px',display:'flex',gap:12,flexWrap:'wrap',justifyContent:'center',maxWidth:240}}>
-            <div style={{width:'100%',textAlign:'center',fontSize:10,color:'rgba(255,255,255,.3)',letterSpacing:2,marginBottom:4}}>РЕАКЦИЯ</div>
-            {REACTION_EMOJIS.map(e=>(
-              <button key={e} onClick={()=>sendReaction(e)} style={{fontSize:28,background:'rgba(255,255,255,.05)',border:'1px solid rgba(255,255,255,.08)',borderRadius:10,padding:'8px 10px',cursor:'pointer',transition:'transform .1s',lineHeight:1}}>{e}</button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TOP */}
-      <div style={{display:'flex',justifyContent:'center',padding:'10px 12px 0',zIndex:2}}>
-        <Seat {...top} position="top" onReact={setReactionTarget}/>
+      {/* TOP PLAYERS */}
+      <div style={{display:'flex',justifyContent:'center',gap:12,padding:'8px 12px 0',zIndex:2,flexWrap:'wrap'}}>
+        {topPlayers.map((s,i)=>(<Seat key={`t${i}`} {...s} position="top" onReact={setReactionTarget} gameMode={gameMode}/>))}
       </div>
 
       {/* MIDDLE */}
-      <div style={{flex:1,display:'flex',alignItems:'center',padding:'4px 8px',gap:4,minHeight:0}}>
-        <div style={{display:'flex',alignItems:'center',flexShrink:0}}>
-          <Seat {...left} position="left" onReact={setReactionTarget}/>
+      <div style={{flex:1,display:'flex',alignItems:'center',padding:'4px 6px',gap:3,minHeight:0}}>
+        <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8,flexShrink:0}}>
+          {leftPlayers.map((s,i)=>(<Seat key={`l${i}`} {...s} position="left" onReact={setReactionTarget} gameMode={gameMode}/>))}
         </div>
         <div style={{flex:1,position:'relative',alignSelf:'stretch',display:'flex',alignItems:'center',justifyContent:'center'}}>
-          <div style={{position:'absolute',inset:0,background:'radial-gradient(ellipse at 50% 45%,#1a5c30 0%,#134522 40%,#0b2e17 70%,#071b0e 100%)',borderRadius:'44%',border:'3px solid #061208',boxShadow:'inset 0 8px 40px rgba(0,0,0,.6),0 10px 50px rgba(0,0,0,.7)'}}>
-            <div style={{position:'absolute',inset:10,borderRadius:'44%',border:'1px solid rgba(255,255,255,.04)',pointerEvents:'none'}}/>
-            <div style={{position:'absolute',inset:0,borderRadius:'44%',backgroundImage:'radial-gradient(circle,rgba(255,255,255,.012) 1px,transparent 1px)',backgroundSize:'18px 18px'}}/>
+          <div style={{position:'absolute',inset:0,background:'radial-gradient(ellipse at 50% 45%,#1a5c30 0%,#134522 40%,#0b2e17 70%,#071b0e 100%)',borderRadius:'44%',border:'3px solid #061208',boxShadow:'inset 0 8px 40px rgba(0,0,0,.6),0 10px 50px rgba(0,0,0,.7)'}}><div style={{position:'absolute',inset:10,borderRadius:'44%',border:'1px solid rgba(255,255,255,.04)',pointerEvents:'none'}}/><div style={{position:'absolute',inset:0,borderRadius:'44%',backgroundImage:'radial-gradient(circle,rgba(255,255,255,.012) 1px,transparent 1px)',backgroundSize:'18px 18px'}}/></div>
+          <div style={{position:'relative',zIndex:2,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:6,padding:12,width:'100%'}}>
+            {table?(<div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+              <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',gap:3,maxWidth:200}}>{table.cards.map((c,i)=>(<div key={c.id} style={{animation:`cardDeal .2s ease ${i*0.04}s both`}}><CardFace card={c} levelVal={myLV} sm/></div>))}</div>
+              <div style={{padding:'3px 10px',background:'rgba(0,0,0,.55)',backdropFilter:'blur(6px)',borderRadius:20,border:'1px solid rgba(245,158,11,.15)',fontSize:9,color:'rgba(245,158,11,.9)',fontWeight:600,letterSpacing:.3}}>{CLABELS[table.combo?.type]} · {players[table.playedBy]?.name}</div>
+              {iOwnTable&&(<button onClick={closetable} style={{padding:'3px 12px',background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.12)',borderRadius:8,cursor:'pointer',color:'rgba(255,255,255,.45)',fontSize:9,fontFamily:"'Outfit',sans-serif",letterSpacing:.5}}>🧹 Закрыть</button>)}
+            </div>):(<div style={{color:'rgba(255,255,255,.2)',fontSize:11,textAlign:'center',letterSpacing:.5}}>{isMyTurn?<>Твой ход<br/>Ходи первым</>:''}</div>)}
           </div>
-          <div style={{position:'relative',zIndex:2,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,padding:16,width:'100%'}}>
-            {table?(
-              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:7}}>
-                <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',gap:3,maxWidth:200}}>
-                  {table.cards.map((c,i)=>(
-                    <div key={c.id} style={{animation:`cardDeal .2s ease ${i*0.04}s both`}}>
-                      <CardFace card={c} levelVal={myLV} sm/>
-                    </div>
-                  ))}
-                </div>
-                <div style={{padding:'4px 12px',background:'rgba(0,0,0,.55)',backdropFilter:'blur(6px)',borderRadius:20,border:'1px solid rgba(245,158,11,.15)',fontSize:10,color:'rgba(245,158,11,.9)',fontWeight:600,letterSpacing:.3}}>
-                  {CLABELS[table.combo?.type]} · {players[table.playedBy]?.name}
-                </div>
-                {iOwnTable&&(
-                  <button onClick={closetable} style={{padding:'4px 14px',background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.12)',borderRadius:8,cursor:'pointer',color:'rgba(255,255,255,.45)',fontSize:10,fontFamily:"'Outfit',sans-serif",letterSpacing:.5,transition:'all .2s'}}>🧹 Закрыть стол</button>
-                )}
-              </div>
-            ):(
-              <div style={{color:'rgba(255,255,255,.2)',fontSize:11,textAlign:'center',letterSpacing:.5}}>
-                {isMyTurn?<>Твой ход<br/>Ходи первым</>:''}
-              </div>
-            )}
-          </div>
-          <div style={{position:'absolute',bottom:8,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-            {timeLeft!==null&&timeLeft<=10&&(
-              <div style={{fontSize:16,fontWeight:900,color:timerColor,fontFamily:"'Outfit',sans-serif",textShadow:`0 0 12px ${timerColor}`,animation:timeLeft<=5?'pulse .6s infinite':'none'}}>{timeLeft}</div>
-            )}
-            <div style={{fontSize:8,color:'rgba(255,255,255,.08)',letterSpacing:3,fontFamily:'monospace'}}>{roomCode}</div>
+          <div style={{position:'absolute',bottom:6,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+            {timeLeft!==null&&timeLeft<=10&&(<div style={{fontSize:14,fontWeight:900,color:timerColor,fontFamily:"'Outfit',sans-serif",textShadow:`0 0 12px ${timerColor}`,animation:timeLeft<=5?'pulse .6s infinite':'none'}}>{timeLeft}</div>)}
+            <div style={{fontSize:7,color:'rgba(255,255,255,.08)',letterSpacing:3,fontFamily:'monospace'}}>{roomCode}</div>
           </div>
         </div>
-        <div style={{display:'flex',alignItems:'center',flexShrink:0}}>
-          <Seat {...right} position="right" onReact={setReactionTarget}/>
+        <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8,flexShrink:0}}>
+          {rightPlayers.map((s,i)=>(<Seat key={`r${i}`} {...s} position="right" onReact={setReactionTarget} gameMode={gameMode}/>))}
         </div>
       </div>
 
       {/* MY AREA */}
-      <div style={{padding:'8px 12px 14px',background:'linear-gradient(0deg,rgba(5,8,16,.95) 0%,rgba(5,8,16,.6) 100%)',borderTop:'1px solid rgba(255,255,255,.06)'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-          <div style={{display:'flex',alignItems:'center',gap:7}}>
+      <div style={{padding:'6px 10px 12px',background:'linear-gradient(0deg,rgba(5,8,16,.95) 0%,rgba(5,8,16,.6) 100%)',borderTop:'1px solid rgba(255,255,255,.06)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}>
+          <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
             {isMyTurn&&<div style={{width:6,height:6,borderRadius:'50%',background:myColor,boxShadow:`0 0 10px ${myColor}`,animation:'pulse 1.2s infinite'}}/>}
             <span style={{fontSize:12,fontWeight:700,color:isMyTurn?myColor:'rgba(255,255,255,.35)',letterSpacing:.3}}>{me?.name||'Я'}</span>
-            <span style={{fontSize:16,color:'#f59e0b',fontWeight:900,fontFamily:"'Georgia',serif",textShadow:isMyTurn?'0 0 12px rgba(245,158,11,.5)':'none'}}>{myLV}</span>
-            <span style={{fontSize:10,color:'rgba(255,255,255,.18)',background:'rgba(255,255,255,.05)',padding:'1px 6px',borderRadius:6}}>{myCards.length} карт</span>
+            {!isStreak&&<span style={{fontSize:16,color:'#f59e0b',fontWeight:900,fontFamily:"'Georgia',serif",textShadow:isMyTurn?'0 0 12px rgba(245,158,11,.5)':'none'}}>{myLV}</span>}
+            <span style={{fontSize:10,color:'rgba(255,255,255,.18)',background:'rgba(255,255,255,.05)',padding:'1px 6px',borderRadius:6}}>{myCards.length}</span>
             {me?.wins>0&&<span style={{fontSize:10,color:'rgba(255,200,50,.6)',background:'rgba(255,200,50,.08)',padding:'1px 6px',borderRadius:6}}>🏆{me.wins}</span>}
+            {(me?.streakWins||0)>0&&<span style={{fontSize:10,color:'#f59e0b',background:'rgba(245,158,11,.1)',padding:'1px 6px',borderRadius:6,fontWeight:700,border:'1px solid rgba(245,158,11,.25)'}}>🔥{me.streakWins}</span>}
             {isMyTurn&&timeLeft!==null&&<span style={{fontSize:10,fontWeight:700,color:timerColor,background:`${timerColor}15`,padding:'1px 6px',borderRadius:6,border:`1px solid ${timerColor}30`}}>{timeLeft}с</span>}
           </div>
-          <button onClick={()=>{setArrangeMode(m=>!m);setSelected([]);setChamVal(null);setArrangeSelected(null);}} style={{padding:'4px 10px',fontSize:10,fontWeight:600,background:arrangeMode?`${myColor}20`:'rgba(255,255,255,.04)',color:arrangeMode?myColor:'rgba(255,255,255,.3)',border:`1px solid ${arrangeMode?myColor:'rgba(255,255,255,.08)'}`,borderRadius:6,cursor:'pointer',fontFamily:"'Inter',sans-serif",letterSpacing:.3,transition:'all .2s'}}>
-            {arrangeMode?'✓ Готово':'⠿ Порядок'}
+          <button onClick={()=>{setGroupMode(m=>!m);setSelected([]);setChamVal(null);setGroupSelect([]);}} style={{padding:'4px 10px',fontSize:10,fontWeight:600,background:groupMode?'rgba(96,165,250,.2)':'rgba(255,255,255,.04)',color:groupMode?'#60a5fa':'rgba(255,255,255,.3)',border:`1px solid ${groupMode?'#60a5fa':'rgba(255,255,255,.08)'}`,borderRadius:6,cursor:'pointer',letterSpacing:.3,transition:'all .2s',flexShrink:0}}>
+            {groupMode?'✓ Готово':'📦'}
           </button>
         </div>
 
-        {!arrangeMode&&hasChamSel&&(
-          <div style={{marginBottom:6,display:'flex',alignItems:'center',flexWrap:'wrap',gap:3,padding:'6px 10px',background:'rgba(168,85,247,.08)',borderRadius:8,border:'1px solid rgba(168,85,247,.18)'}}>
-            <span style={{fontSize:10,color:'#c084fc',marginRight:2}}>✦ =</span>
-            {CHAM_OK.map(v=>(<button key={v} onClick={()=>setChamVal(v)} style={{padding:'2px 7px',background:chamVal===v?'rgba(168,85,247,.45)':'rgba(168,85,247,.08)',color:chamVal===v?'#fff':'#c084fc',border:`1px solid ${chamVal===v?'#a855f7':'rgba(168,85,247,.18)'}`,borderRadius:4,cursor:'pointer',fontSize:10,fontFamily:"'Georgia',serif",fontWeight:700,transition:'all .15s'}}>{v}</button>))}
-          </div>
-        )}
+        {!groupMode&&hasChamSel&&(<div style={{marginBottom:5,display:'flex',alignItems:'center',flexWrap:'wrap',gap:3,padding:'5px 8px',background:'rgba(168,85,247,.08)',borderRadius:8,border:'1px solid rgba(168,85,247,.18)'}}><span style={{fontSize:10,color:'#c084fc',marginRight:2}}>✦ =</span>{CHAM_OK.map(v=>(<button key={v} onClick={()=>setChamVal(v)} style={{padding:'2px 6px',background:chamVal===v?'rgba(168,85,247,.45)':'rgba(168,85,247,.08)',color:chamVal===v?'#fff':'#c084fc',border:`1px solid ${chamVal===v?'#a855f7':'rgba(168,85,247,.18)'}`,borderRadius:4,cursor:'pointer',fontSize:10,fontFamily:"'Georgia',serif",fontWeight:700}}>{v}</button>))}</div>)}
+        {!groupMode&&selected.length>0&&(<div style={{fontSize:10,marginBottom:4,display:'flex',alignItems:'center',gap:6,animation:'slideUp .15s ease'}}><div style={{width:5,height:5,borderRadius:'50%',flexShrink:0,background:canPlayIt?'#4ade80':'#f87171',boxShadow:`0 0 6px ${canPlayIt?'#4ade80':'#f87171'}`}}/><span style={{color:canPlayIt?'#86efac':'#fca5a5',fontWeight:600}}>{curCombo?`${CLABELS[curCombo.type]}${canPlayIt?' ✓':' — не бьёт'}`:'Не комбинация'}</span></div>)}
+        {groupMode&&(<div style={{marginBottom:4}}><div style={{fontSize:9,color:'rgba(96,165,250,.6)',textAlign:'center',letterSpacing:.3,marginBottom:3}}>Выбери карты → Сгруппировать · Долгий тап = разбить</div>{groupSelect.length>=2&&(<div style={{display:'flex',justifyContent:'center',gap:6}}><button onClick={createGroup} style={{padding:'4px 14px',background:groupSelCombo?'rgba(96,165,250,.15)':'rgba(255,255,255,.04)',color:groupSelCombo?'#60a5fa':'rgba(255,255,255,.2)',border:`1px solid ${groupSelCombo?'rgba(96,165,250,.3)':'rgba(255,255,255,.08)'}`,borderRadius:8,cursor:groupSelCombo?'pointer':'default',fontSize:10,fontWeight:700,fontFamily:"'Outfit',sans-serif"}}>{groupSelCombo?`📦 ${groupLabel(groupSelCombo)}`:'❌ Не комбинация'}</button><button onClick={()=>setGroupSelect([])} style={{padding:'4px 10px',background:'rgba(255,255,255,.04)',color:'rgba(255,255,255,.25)',border:'1px solid rgba(255,255,255,.08)',borderRadius:8,cursor:'pointer',fontSize:10}}>Сброс</button></div>)}</div>)}
 
-        {!arrangeMode&&selected.length>0&&(
-          <div style={{fontSize:10,marginBottom:5,display:'flex',alignItems:'center',gap:6,animation:'slideUp .15s ease'}}>
-            <div style={{width:5,height:5,borderRadius:'50%',flexShrink:0,background:canPlayIt?'#4ade80':'#f87171',boxShadow:`0 0 6px ${canPlayIt?'#4ade80':'#f87171'}`}}/>
-            <span style={{color:canPlayIt?'#86efac':'#fca5a5',fontWeight:600}}>
-              {curCombo?`${CLABELS[curCombo.type]}${canPlayIt?' ✓':' — не бьёт'}`:'Недопустимая комбинация'}
-            </span>
-          </div>
-        )}
-
-        {arrangeMode&&(
-          <div style={{fontSize:10,color:'rgba(96,165,250,.6)',marginBottom:5,textAlign:'center',letterSpacing:.3}}>
-            {arrangeSelected!==null ? '← Нажми на вторую карту для обмена' : 'Нажми на карту чтобы переместить'}
-          </div>
-        )}
-
-        {/* Cards — overlapping fan layout */}
-        <div style={{
-          display:'flex',
-          minHeight:96,
-          padding:'2px 0 12px',
-          alignItems:'flex-end',
-          animation:badAnim?'shake .35s ease':'none',
-          overflowX:'auto',
-          overflowY:'visible',
-          WebkitOverflowScrolling:'touch',
-          paddingBottom:16,
-        }}>
-          {displayCards.map((card,idx)=>(
-            <div key={card.id} style={{
-              flexShrink:0,
-              marginLeft: idx === 0 ? 0 : -(CARD_W - CARD_VISIBLE),
-              zIndex: isSel(card) ? 100 : (arrangeSelected === idx ? 99 : idx),
-              position:'relative',
-            }}>
-              <CardFace
-                card={card}
-                sel={!arrangeMode&&isSel(card)}
-                isArrangeSelected={arrangeMode&&arrangeSelected===idx}
-                onClick={arrangeMode ? ()=>handleArrangeTap(idx) : ()=>toggleCard(card)}
-                levelVal={myLV}
-              />
-            </div>
-          ))}
+        <div style={{display:'flex',minHeight:106,paddingTop:24,paddingBottom:8,paddingLeft:4,paddingRight:4,alignItems:'flex-end',animation:badAnim?'shake .35s ease':'none',overflowX:'auto',overflowY:'visible',WebkitOverflowScrolling:'touch'}}>
+          {displayItems.map((item,idx)=>{
+            if(item.type==='group'){const grp=item.group,grpCards=item.cards,allSel=!groupMode&&grpCards.every(c=>selected.some(s=>s.id===c.id));return(<div key={`g-${grp.id}`} style={{flexShrink:0,marginLeft:idx===0?0:8,zIndex:allSel?100:idx+1,position:'relative'}}><GroupedStack group={{...grp,cards:grpCards}} sel={allSel} onClick={groupMode?undefined:()=>toggleGroupOnPlay(grp)} levelVal={myLV} onUngroup={()=>ungroupGroup(grp.id)}/></div>);}
+            const card=item.card,isInGroupSel=groupMode&&groupSelect.includes(card.id);
+            return(<div key={card.id} style={{flexShrink:0,marginLeft:idx===0?0:-(CARD_W-CARD_VISIBLE),zIndex:isSel(card)?100:(isInGroupSel?99:idx+1),position:'relative'}}><CardFace card={card} sel={!groupMode&&isSel(card)} isGroupSelect={isInGroupSel} onClick={groupMode?()=>toggleGroupSelect(card.id):()=>toggleCard(card)} levelVal={myLV}/></div>);
+          })}
         </div>
 
-        {!arrangeMode&&isMyTurn&&(
-          <div style={{display:'flex',gap:8}}>
-            <button onClick={playCards} style={{flex:2,padding:'11px',background:canPlayIt?'linear-gradient(135deg,#d97706,#f59e0b)':'rgba(255,255,255,.04)',color:canPlayIt?'#111':'rgba(255,255,255,.12)',border:`1px solid ${canPlayIt?'#f59e0b':'rgba(255,255,255,.06)'}`,borderRadius:10,cursor:canPlayIt?'pointer':'default',fontWeight:800,fontSize:14,fontFamily:"'Outfit',sans-serif",letterSpacing:.5,boxShadow:canPlayIt?'0 4px 20px rgba(245,158,11,.4)':'none',transition:'all .2s'}}>СЫГРАТЬ</button>
-            {canPassIt&&(<button onClick={pass} style={{flex:1,padding:'11px',background:'rgba(255,255,255,.04)',color:'rgba(255,255,255,.4)',border:'1px solid rgba(255,255,255,.08)',borderRadius:10,cursor:'pointer',fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:600,transition:'all .2s'}}>ПАС</button>)}
-            {selected.length>0&&(<button onClick={()=>{setSelected([]);setChamVal(null);}} style={{padding:'11px 14px',background:'rgba(255,255,255,.03)',color:'rgba(255,255,255,.2)',border:'1px solid rgba(255,255,255,.06)',borderRadius:10,cursor:'pointer',fontSize:14,transition:'all .2s'}}>✕</button>)}
-          </div>
-        )}
+        {!groupMode&&isMyTurn&&(<div style={{display:'flex',gap:8}}><button onClick={playCards} style={{flex:2,padding:'10px',background:canPlayIt?'linear-gradient(135deg,#d97706,#f59e0b)':'rgba(255,255,255,.04)',color:canPlayIt?'#111':'rgba(255,255,255,.12)',border:`1px solid ${canPlayIt?'#f59e0b':'rgba(255,255,255,.06)'}`,borderRadius:10,cursor:canPlayIt?'pointer':'default',fontWeight:800,fontSize:14,fontFamily:"'Outfit',sans-serif",letterSpacing:.5,boxShadow:canPlayIt?'0 4px 20px rgba(245,158,11,.4)':'none',transition:'all .2s'}}>СЫГРАТЬ</button>{canPassIt&&(<button onClick={pass} style={{flex:1,padding:'10px',background:'rgba(255,255,255,.04)',color:'rgba(255,255,255,.4)',border:'1px solid rgba(255,255,255,.08)',borderRadius:10,cursor:'pointer',fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:600}}>ПАС</button>)}{selected.length>0&&(<button onClick={()=>{setSelected([]);setChamVal(null);}} style={{padding:'10px 14px',background:'rgba(255,255,255,.03)',color:'rgba(255,255,255,.2)',border:'1px solid rgba(255,255,255,.06)',borderRadius:10,cursor:'pointer',fontSize:14}}>✕</button>)}</div>)}
 
-        {log?.length>0&&(
-          <div style={{marginTop:8}}>
-            <div onClick={()=>setLogOpen(o=>!o)} style={{fontSize:10,color:'rgba(245,158,11,.4)',textAlign:'center',cursor:'pointer',overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',userSelect:'none'}}>
-              {log[log.length-1]}{log.length>1?` ${logOpen?'▴':'▾'}`:''}
-            </div>
-            {logOpen&&(
-              <div style={{marginTop:4,padding:'6px 10px',background:'rgba(0,0,0,.45)',borderRadius:8,border:'1px solid rgba(255,255,255,.06)',maxHeight:90,overflowY:'auto',animation:'slideUp .15s ease'}}>
-                {[...log].reverse().map((entry,i)=>(
-                  <div key={i} style={{fontSize:9,color:'rgba(255,255,255,.3)',padding:'2px 0',borderBottom:i<log.length-1?'1px solid rgba(255,255,255,.04)':'none'}}>{entry}</div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {log?.length>0&&(<div style={{marginTop:6}}><div onClick={()=>setLogOpen(o=>!o)} style={{fontSize:9,color:'rgba(245,158,11,.4)',textAlign:'center',cursor:'pointer',overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',userSelect:'none'}}>{log[log.length-1]}{log.length>1?` ${logOpen?'▴':'▾'}`:''}</div>{logOpen&&(<div style={{marginTop:3,padding:'5px 8px',background:'rgba(0,0,0,.45)',borderRadius:8,border:'1px solid rgba(255,255,255,.06)',maxHeight:80,overflowY:'auto',animation:'slideUp .15s ease'}}>{[...log].reverse().map((entry,i)=>(<div key={i} style={{fontSize:8,color:'rgba(255,255,255,.3)',padding:'2px 0',borderBottom:i<log.length-1?'1px solid rgba(255,255,255,.04)':'none'}}>{entry}</div>))}</div>)}</div>)}
       </div>
 
-      {/* Finished / Champion / Abandoned overlay */}
+      {/* Finished overlay */}
       {phase==='finished'&&(
-        <div style={{position:'absolute',inset:0,zIndex:20,background:'rgba(5,8,16,.94)',backdropFilter:'blur(10px)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',animation:'fadeIn .4s ease',padding:24}}>
-          {abandoned?(
-            <>
-              <div style={{fontSize:52,marginBottom:8}}>🚪</div>
-              <div style={{fontSize:18,fontWeight:900,letterSpacing:2,marginBottom:6,fontFamily:"'Outfit',sans-serif",color:'rgba(255,255,255,.6)'}}>ИГРА ЗАВЕРШЕНА</div>
-              <div style={{fontSize:12,color:'rgba(255,255,255,.3)',marginBottom:28,textAlign:'center',lineHeight:1.6}}>Игрок покинул игру</div>
-              <button onClick={onExit} style={{padding:'13px 36px',background:'rgba(255,255,255,.07)',color:'rgba(255,255,255,.6)',border:'1px solid rgba(255,255,255,.12)',borderRadius:12,cursor:'pointer',fontWeight:700,fontSize:15,fontFamily:"'Outfit',sans-serif",letterSpacing:.5}}>В ЛОББИ →</button>
-            </>
-          ):isChampion?(
-            <>
-              <div style={{fontSize:72,marginBottom:4,animation:'starPop .5s ease both'}}>&#x1F451;</div>
-              <div style={{fontSize:11,letterSpacing:6,color:'rgba(245,158,11,.5)',fontFamily:"'Outfit',sans-serif",fontWeight:600,marginBottom:8}}>ЧЕМПИОН СЕССИИ</div>
-              <div style={{fontSize:32,fontWeight:900,letterSpacing:2,fontFamily:"'Outfit',sans-serif",background:'linear-gradient(135deg,#fcd34d,#f59e0b,#fcd34d)',WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent',animation:'champGlow 2s ease infinite',marginBottom:4,textAlign:'center'}}>
-                {championPlayer?.name}
-              </div>
-              <div style={{fontSize:36,color:'#f59e0b',fontFamily:"'Georgia',serif",fontWeight:900,marginBottom:24,textShadow:'0 0 20px rgba(245,158,11,.8)'}}>3</div>
-              <div style={{width:'100%',maxWidth:290,display:'flex',flexDirection:'column',gap:6,marginBottom:20}}>
-                {[...players].sort((a,b)=>(b.levelIdx??0)-(a.levelIdx??0)).map((p,rank)=>(
-                  <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 16px',borderRadius:10,background:p.seatIndex===champion?'rgba(245,158,11,.1)':'rgba(255,255,255,.03)',border:`1px solid ${p.seatIndex===champion?'rgba(245,158,11,.35)':'rgba(255,255,255,.05)'}`}}>
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <span style={{fontSize:12,color:'rgba(255,255,255,.2)',width:16}}>{rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`${rank+1}`}</span>
-                      <span style={{color:P_COLORS[p.seatIndex],fontWeight:700,fontSize:13}}>{p.name}{p.isMe?' (я)':''}</span>
-                    </div>
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      {p.wins>0&&<span style={{fontSize:10,color:'rgba(255,200,50,.5)'}}>🏆×{p.wins}</span>}
-                      <span style={{color:'#f59e0b',fontSize:20,fontWeight:900,fontFamily:"'Georgia',serif"}}>{p.level}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{display:'flex',gap:10}}>
-                {mySeatIndex===0&&(
-                  <button onClick={()=>{haptic('impact');socket.emit('newGame',{code:roomCode});}} style={{padding:'13px 28px',background:'linear-gradient(135deg,#d97706,#f59e0b)',color:'#111',border:'none',borderRadius:12,cursor:'pointer',fontWeight:800,fontSize:14,fontFamily:"'Outfit',sans-serif",letterSpacing:.5,boxShadow:'0 4px 24px rgba(245,158,11,.5)'}}>НОВАЯ СЕССИЯ</button>
-                )}
-                <button onClick={onExit} style={{padding:'13px 20px',background:'rgba(255,255,255,.05)',color:'rgba(255,255,255,.4)',border:'1px solid rgba(255,255,255,.1)',borderRadius:12,cursor:'pointer',fontWeight:600,fontSize:14,fontFamily:"'Outfit',sans-serif"}}>В лобби</button>
-              </div>
-              {mySeatIndex!==0&&<div style={{marginTop:12,fontSize:12,color:'rgba(255,255,255,.22)',letterSpacing:.5}}>Ожидаем хоста...</div>}
-            </>
-          ):(
-            <>
-              <div style={{fontSize:48,marginBottom:8}}>🏆</div>
-              <div style={{fontSize:22,fontWeight:900,letterSpacing:4,marginBottom:6,fontFamily:"'Outfit',sans-serif",background:'linear-gradient(135deg,#fcd34d,#f59e0b)',WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent'}}>ПАРТИЯ ОКОНЧЕНА</div>
-              <div style={{fontSize:10,color:'rgba(255,255,255,.2)',letterSpacing:3,fontFamily:"'Outfit',sans-serif",marginBottom:24}}>РЕЗУЛЬТАТЫ</div>
-              {[...players].sort((a,b)=>(b.levelIdx??0)-(a.levelIdx??0)).map((p,rank)=>(
-                <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 20px',margin:'4px 0',borderRadius:12,width:'100%',maxWidth:290,background:rank===0?'rgba(245,158,11,.08)':'rgba(255,255,255,.03)',border:`1px solid ${rank===0?'rgba(245,158,11,.25)':'rgba(255,255,255,.05)'}`}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <span style={{fontSize:12,color:'rgba(255,255,255,.2)',fontWeight:600,width:16}}>{rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`${rank+1}`}</span>
-                    <span style={{color:P_COLORS[p.seatIndex],fontWeight:700,fontSize:14}}>{p.name}{p.isMe?' (я)':''}</span>
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    {p.wins>0&&<span style={{fontSize:11,color:'rgba(255,200,50,.5)'}}>🏆×{p.wins}</span>}
-                    <span style={{color:'#f59e0b',fontSize:22,fontWeight:900,fontFamily:"'Georgia',serif"}}>{p.level}</span>
-                  </div>
-                </div>
-              ))}
-              <div style={{display:'flex',gap:10,marginTop:20}}>
-                {mySeatIndex===0&&(
-                  <button onClick={()=>{haptic('impact');socket.emit('newGame',{code:roomCode});}} style={{padding:'13px 28px',background:'linear-gradient(135deg,#d97706,#f59e0b)',color:'#111',border:'none',borderRadius:12,cursor:'pointer',fontWeight:800,fontSize:14,fontFamily:"'Outfit',sans-serif",letterSpacing:.5,boxShadow:'0 4px 24px rgba(245,158,11,.4)'}}>НОВАЯ ИГРА</button>
-                )}
-                <button onClick={onExit} style={{padding:'13px 20px',background:'rgba(255,255,255,.05)',color:'rgba(255,255,255,.4)',border:'1px solid rgba(255,255,255,.1)',borderRadius:12,cursor:'pointer',fontWeight:600,fontSize:14,fontFamily:"'Outfit',sans-serif"}}>В лобби</button>
-              </div>
-              {mySeatIndex!==0&&<div style={{marginTop:12,fontSize:12,color:'rgba(255,255,255,.22)',letterSpacing:.5}}>Ожидаем хоста...</div>}
-            </>
-          )}
+        <div style={{position:'absolute',inset:0,zIndex:20,background:'rgba(5,8,16,.94)',backdropFilter:'blur(10px)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',animation:'fadeIn .4s ease',padding:24,overflowY:'auto'}}>
+          {abandoned?(<>
+            <div style={{fontSize:52,marginBottom:8}}>🚪</div>
+            <div style={{fontSize:18,fontWeight:900,letterSpacing:2,marginBottom:6,fontFamily:"'Outfit',sans-serif",color:'rgba(255,255,255,.6)'}}>ИГРА ЗАВЕРШЕНА</div>
+            <div style={{fontSize:12,color:'rgba(255,255,255,.3)',marginBottom:28,textAlign:'center'}}>Игрок покинул игру</div>
+            <button onClick={onExit} style={{padding:'13px 36px',background:'rgba(255,255,255,.07)',color:'rgba(255,255,255,.6)',border:'1px solid rgba(255,255,255,.12)',borderRadius:12,cursor:'pointer',fontWeight:700,fontSize:15,fontFamily:"'Outfit',sans-serif"}}>В ЛОББИ →</button>
+          </>):isChampion?(<>
+            <div style={{fontSize:72,marginBottom:4,animation:'starPop .5s ease both'}}>&#x1F451;</div>
+            <div style={{fontSize:11,letterSpacing:6,color:'rgba(245,158,11,.5)',fontFamily:"'Outfit',sans-serif",fontWeight:600,marginBottom:8}}>{isStreak?'3 ПОБЕДЫ ПОДРЯД':'ЧЕМПИОН СЕССИИ'}</div>
+            <div style={{fontSize:32,fontWeight:900,letterSpacing:2,fontFamily:"'Outfit',sans-serif",background:'linear-gradient(135deg,#fcd34d,#f59e0b,#fcd34d)',WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent',animation:'champGlow 2s ease infinite',marginBottom:4,textAlign:'center'}}>{championPlayer?.name}</div>
+            <div style={{fontSize:36,color:'#f59e0b',fontFamily:"'Georgia',serif",fontWeight:900,marginBottom:20,textShadow:'0 0 20px rgba(245,158,11,.8)'}}>{isStreak?'🔥🔥🔥':'3'}</div>
+            <div style={{width:'100%',maxWidth:290,display:'flex',flexDirection:'column',gap:5,marginBottom:16}}>
+              {[...players].sort((a,b)=>(b.wins||0)-(a.wins||0)||(b.levelIdx??0)-(a.levelIdx??0)).map((p,rank)=>(<div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 14px',borderRadius:10,background:p.seatIndex===champion?'rgba(245,158,11,.1)':'rgba(255,255,255,.03)',border:`1px solid ${p.seatIndex===champion?'rgba(245,158,11,.35)':'rgba(255,255,255,.05)'}`}}><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:11,color:'rgba(255,255,255,.2)',width:16}}>{rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`${rank+1}`}</span><span style={{color:P_COLORS[p.seatIndex],fontWeight:700,fontSize:12}}>{p.name}{p.isMe?' (я)':''}</span></div><div style={{display:'flex',alignItems:'center',gap:6}}>{p.wins>0&&<span style={{fontSize:9,color:'rgba(255,200,50,.5)'}}>🏆×{p.wins}</span>}{!isStreak&&<span style={{color:'#f59e0b',fontSize:18,fontWeight:900,fontFamily:"'Georgia',serif"}}>{p.level}</span>}</div></div>))}
+            </div>
+            <div style={{display:'flex',gap:10}}>{mySeatIndex===0&&(<button onClick={()=>{haptic('impact');socket.emit('newGame',{code:roomCode});}} style={{padding:'12px 24px',background:'linear-gradient(135deg,#d97706,#f59e0b)',color:'#111',border:'none',borderRadius:12,cursor:'pointer',fontWeight:800,fontSize:14,fontFamily:"'Outfit',sans-serif",boxShadow:'0 4px 24px rgba(245,158,11,.5)'}}>НОВАЯ СЕССИЯ</button>)}<button onClick={onExit} style={{padding:'12px 18px',background:'rgba(255,255,255,.05)',color:'rgba(255,255,255,.4)',border:'1px solid rgba(255,255,255,.1)',borderRadius:12,cursor:'pointer',fontWeight:600,fontSize:14,fontFamily:"'Outfit',sans-serif"}}>В лобби</button></div>
+            {mySeatIndex!==0&&<div style={{marginTop:12,fontSize:12,color:'rgba(255,255,255,.22)'}}>Ожидаем хоста...</div>}
+          </>):(<>
+            <div style={{fontSize:48,marginBottom:8}}>{isStreak?'🔥':'🏆'}</div>
+            <div style={{fontSize:22,fontWeight:900,letterSpacing:4,marginBottom:6,fontFamily:"'Outfit',sans-serif",background:'linear-gradient(135deg,#fcd34d,#f59e0b)',WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent'}}>{isStreak?'РАУНД ОКОНЧЕН':'ПАРТИЯ ОКОНЧЕНА'}</div>
+            {isStreak&&<div style={{fontSize:11,color:'rgba(255,255,255,.3)',marginBottom:8}}>Счётчик побед подряд сохраняется</div>}
+            <div style={{fontSize:10,color:'rgba(255,255,255,.2)',letterSpacing:3,fontFamily:"'Outfit',sans-serif",marginBottom:20}}>РЕЗУЛЬТАТЫ</div>
+            {[...players].sort((a,b)=>(b.wins||0)-(a.wins||0)||(b.levelIdx??0)-(a.levelIdx??0)).map((p,rank)=>(<div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 18px',margin:'3px 0',borderRadius:12,width:'100%',maxWidth:290,background:rank===0?'rgba(245,158,11,.08)':'rgba(255,255,255,.03)',border:`1px solid ${rank===0?'rgba(245,158,11,.25)':'rgba(255,255,255,.05)'}`}}><div style={{display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:11,color:'rgba(255,255,255,.2)',fontWeight:600,width:16}}>{rank===0?'🥇':rank===1?'🥈':rank===2?'🥉':`${rank+1}`}</span><span style={{color:P_COLORS[p.seatIndex],fontWeight:700,fontSize:13}}>{p.name}{p.isMe?' (я)':''}</span></div><div style={{display:'flex',alignItems:'center',gap:6}}>{(p.streakWins||0)>0&&<span style={{fontSize:10,color:'#f59e0b',fontWeight:700}}>🔥{p.streakWins}</span>}{p.wins>0&&<span style={{fontSize:10,color:'rgba(255,200,50,.5)'}}>🏆×{p.wins}</span>}{!isStreak&&<span style={{color:'#f59e0b',fontSize:20,fontWeight:900,fontFamily:"'Georgia',serif"}}>{p.level}</span>}</div></div>))}
+            <div style={{display:'flex',gap:10,marginTop:16}}>{mySeatIndex===0&&(<button onClick={()=>{haptic('impact');socket.emit('newGame',{code:roomCode});}} style={{padding:'12px 24px',background:'linear-gradient(135deg,#d97706,#f59e0b)',color:'#111',border:'none',borderRadius:12,cursor:'pointer',fontWeight:800,fontSize:14,fontFamily:"'Outfit',sans-serif",boxShadow:'0 4px 24px rgba(245,158,11,.4)'}}>{isStreak?'СЛЕДУЮЩИЙ РАУНД':'НОВАЯ ИГРА'}</button>)}<button onClick={onExit} style={{padding:'12px 18px',background:'rgba(255,255,255,.05)',color:'rgba(255,255,255,.4)',border:'1px solid rgba(255,255,255,.1)',borderRadius:12,cursor:'pointer',fontWeight:600,fontSize:14,fontFamily:"'Outfit',sans-serif"}}>В лобби</button></div>
+            {mySeatIndex!==0&&<div style={{marginTop:12,fontSize:12,color:'rgba(255,255,255,.22)'}}>Ожидаем хоста...</div>}
+          </>)}
         </div>
       )}
     </div>
@@ -658,37 +477,21 @@ export default function App(){
   useEffect(()=>{
     const socket=io(SERVER_URL,{transports:['websocket','polling']});
     socketRef.current=socket;
-    socket.on('connect',()=>{
-      const savedCode=localStorage.getItem('sanzhut_room');
-      const savedPlayerId=localStorage.getItem('sanzhut_player_id');
-      if(savedCode&&savedPlayerId){sessionSavedRef.current=true;socket.emit('rejoinRoom',{code:savedCode,playerId:savedPlayerId});}
-    });
+    socket.on('connect',()=>{const savedCode=localStorage.getItem('sanzhut_room');const savedPlayerId=localStorage.getItem('sanzhut_player_id');if(savedCode&&savedPlayerId){sessionSavedRef.current=true;socket.emit('rejoinRoom',{code:savedCode,playerId:savedPlayerId});}});
     socket.on('roomCreated',({code})=>{setRoomCode(code);localStorage.setItem('sanzhut_room',code);localStorage.setItem('sanzhut_player_id',socket.id);sessionSavedRef.current=true;});
-    socket.on('gameState',(state)=>{
-      setGs(state);
-      if(state.roomCode) setRoomCode(state.roomCode);
-      if(state.phase==='playing'||state.phase==='finished') setScreen('game');
-      else if(state.players?.length>0) setScreen('waiting');
-      if(!sessionSavedRef.current&&state.roomCode){localStorage.setItem('sanzhut_room',state.roomCode);localStorage.setItem('sanzhut_player_id',socket.id);sessionSavedRef.current=true;}
-    });
+    socket.on('gameState',(state)=>{setGs(state);if(state.roomCode) setRoomCode(state.roomCode);if(state.phase==='playing'||state.phase==='finished') setScreen('game');else if(state.players?.length>0) setScreen('waiting');if(!sessionSavedRef.current&&state.roomCode){localStorage.setItem('sanzhut_room',state.roomCode);localStorage.setItem('sanzhut_player_id',socket.id);sessionSavedRef.current=true;}});
     socket.on('error',(msg)=>{haptic('warning');setError(msg);setTimeout(()=>setError(''),3000);if(msg==='Комната не найдена'){localStorage.removeItem('sanzhut_room');localStorage.removeItem('sanzhut_player_id');sessionSavedRef.current=false;}});
     return()=>socket.disconnect();
   },[]);
 
-  function handleCreate(name){setError('');socketRef.current?.emit('createRoom',{playerName:name});}
+  function handleCreate(name,gameMode,maxPlayers){setError('');socketRef.current?.emit('createRoom',{playerName:name,gameMode,maxPlayers});}
   function handleJoin(name,code){setError('');socketRef.current?.emit('joinRoom',{playerName:name,code});}
   function handleFillBots(){socketRef.current?.emit('fillWithBots',{code:roomCode});}
-  function handleExit(){
-    localStorage.removeItem('sanzhut_room');
-    localStorage.removeItem('sanzhut_player_id');
-    sessionSavedRef.current=false;
-    setGs(null);
-    setRoomCode('');
-    setScreen('lobby');
-  }
+  function handleStart(){socketRef.current?.emit('startGame',{code:roomCode});}
+  function handleExit(){localStorage.removeItem('sanzhut_room');localStorage.removeItem('sanzhut_player_id');sessionSavedRef.current=false;setGs(null);setRoomCode('');setScreen('lobby');}
 
   if(screen==='lobby') return <Lobby onCreate={handleCreate} onJoin={handleJoin} error={error}/>;
-  if(screen==='waiting'&&gs) return <WaitingRoom roomCode={roomCode||gs?.roomCode} players={gs.players} onFillBots={handleFillBots} onExit={handleExit}/>;
+  if(screen==='waiting'&&gs) return <WaitingRoom roomCode={roomCode||gs?.roomCode} players={gs.players} maxPlayers={gs.maxPlayers||4} gameMode={gs.gameMode||'classic'} onFillBots={handleFillBots} onStart={handleStart} onExit={handleExit}/>;
   if(screen==='game'&&gs) return <Game gs={gs} socket={socketRef.current} roomCode={roomCode||gs?.roomCode} onExit={handleExit}/>;
   return(<div style={{minHeight:'100vh',background:'linear-gradient(160deg,#080d1a,#050810)',display:'flex',alignItems:'center',justifyContent:'center',color:'#f59e0b',fontSize:16,fontFamily:"'Outfit',sans-serif",letterSpacing:3}}>Подключение...</div>);
 }
